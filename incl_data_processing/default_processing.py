@@ -23,11 +23,11 @@ def process_events(t):
         "noCascadeFSI_at": [], "QE_deex_at": [], "multipleNucleon_noCluster_at": [],
         "nuclearCluster_at": [], "oneProton_at": [], "protonPion_at": [], "other_at": [],
 
-        "noCascadeFSI": [], "QE_deex": [], "multipleNucleon_noCluster": [],
+        "noCascadeFSI": [],"noCascadeFSIPhoton": [], "QE_deex": [], "multipleNucleon_noCluster": [],
         "multipleNucleon_noCluster_src": [], "nuclearCluster": [], "nuclearCluster_src": [],
         "oneProton": [], "protonPion": [], "other": [],
 
-        "noCascadeFSI_pre": [], "QE_deex_pre": [], "multipleNucleon_noCluster_pre": [],
+        "noCascadeFSI_pre": [], "noCascadeFSIPhoton_pre": [],"QE_deex_pre": [], "multipleNucleon_noCluster_pre": [],
         "nuclearCluster_pre": [], "oneProton_pre": [], "protonPion_pre": [],
         "mu_only": [], "no_protons": [], "other_pre": [],
 
@@ -54,7 +54,7 @@ def process_events(t):
         "2p2h_protonPion": [], "2p2h_muOnly": [], "2p2h_other": [],
         "2p2h_neutronPion": [],
 
-        "ex_mf": [], "ex_noCascadeFSI": [],"ex_QE_deex": [], "ex_multipleNucleon_noCluster": [],"ex_nuclearCluster": [],
+        "ex_mf": [], "ex_noCascadeFSI": [],"ex_noCascadeFSIPhoton": [],"ex_QE_deex": [], "ex_multipleNucleon_noCluster": [],"ex_nuclearCluster": [],
         "ex_oneProton": [], "ex_protonPion": [],"ex_no_protons": [], "ex_src":[], "ex_2p2h": [],
         "ex_other": []
     }
@@ -73,13 +73,15 @@ def process_events(t):
         prefsi_proton_mom = nvect_class.PreFSIProtMom
         eventType = nvect_class.eventType
         intChannel = nvect_class.intChannel
+
         miss_E = nvect_class.E_miss
         miss_p = nvect_class.P_miss
 
-        
 
-        if eventType == EventType.MF:
+
+        if eventType == EventType.MF or eventType == EventType.NC_mf:
             excitation_E = nvect_class.excitation_E_CCQE()
+            print(excitation_E)
             output_dic["ex_mf"].append(excitation_E)
             if (intChannel == intChannel_CCQE.muOnly) or (intChannel == intChannel_CCQE.neutronPion):
                 output_dic["no_protons"].append(prefsi_proton_mom)
@@ -99,6 +101,16 @@ def process_events(t):
                     output_dic["noCascadeFSI_pre"].append(prefsi_proton_mom)
                 else:
                     output_dic["noCascadeFSI_pre"].append(HMP_proton)
+
+            if intChannel == intChannel_CCQE.noCascadeFSIPhoton:
+                output_dic["noCascadeFSIPhoton"].append(HMP_proton)
+                output_dic["noCascadeFSI_at"].append(dat)
+                output_dic["noCascadeFSI_pt"].append(DPT)
+                output_dic["ex_noCascadeFSIPhoton"].append(excitation_E) # Added
+                if(prefsi_proton_mom != 0):
+                    output_dic["noCascadeFSIPhoton_pre"].append(prefsi_proton_mom)
+                else:
+                    output_dic["noCascadeFSIPhoton_pre"].append(HMP_proton)
 
             elif intChannel == intChannel_CCQE.qeDeEX:
                 output_dic["QE_deex"].append(HMP_proton)
@@ -145,7 +157,7 @@ def process_events(t):
                 output_dic["other_pre"].append(prefsi_proton_mom)
                 output_dic["ex_other"].append(excitation_E) # Added
 
-        elif eventType == EventType.SRC:
+        elif eventType == EventType.SRC or eventType == EventType.NC_SRC:
             excitation_E = nvect_class.excitation_E_SRC()
             output_dic["ex_src"].append(excitation_E)
             if (intChannel == intChannel_CCQE.muOnly) or (intChannel == intChannel_CCQE.neutronPion):
@@ -249,9 +261,13 @@ def process_events(t):
             print("how are we here")
             #nvect_class.Print()
 
-        if eventType == EventType.SRC:
+        if eventType == EventType.SRC or eventType == EventType.NC_SRC:
+            nvect_class.Print()
+            print(miss_p, miss_E)
             h_src.Fill(miss_p, miss_E)
-        elif eventType == EventType.MF:
+        elif eventType == EventType.MF or eventType == EventType.NC_mf:
+            nvect_class.Print()
+            print((miss_p, miss_E))
             h_nonsrc.Fill(miss_p, miss_E)
 
     return output_dic, h_src,h_nonsrc
@@ -303,6 +319,7 @@ def INCL_processing(filename):
     h_nucCluster = create_histo("h_nuc", "Nuclear Clusters",       ROOT.kViolet-4, 3001, output_dic["nuclearCluster"],n_bins,x_min,x_max)
     #h_nucCluster_src = create_histo("h_nuc_src", "Nuclear Clusters, SRC",       ROOT.kViolet-1, 3001, output_dic["nuclearCluster_src"],n_bins,x_min,x_max)
     h_noCascade  = create_histo("h_noC", "No Cascade FSI",         ROOT.kOrange-4, 3001, output_dic["noCascadeFSI"],n_bins,x_min,x_max)
+    h_noCascadePhoton  = create_histo("h_noCP", "No Cascade FSI + photon",         ROOT.kOrange-1, 3001, output_dic["noCascadeFSIPhoton"],n_bins,x_min,x_max)
     h_QE         = create_histo("h_qe",  "QE Proton + De-ex",      ROOT.kOrange+7, 3001, output_dic["QE_deex"],n_bins,x_min,x_max)
     h_multiNuc   = create_histo("h_mul", "Multiple Nucleons",      ROOT.kRed+2,    3001, output_dic["multipleNucleon_noCluster"],n_bins,x_min,x_max)
     #h_multiNuc_src = create_histo("h_mul_src", "Multiple Nucleons, SRC",      ROOT.kRed,    3001, output_dic["multipleNucleon_noCluster_src"],n_bins,x_min,x_max)
@@ -321,6 +338,7 @@ def INCL_processing(filename):
     hs.Add(h_nucCluster)
     #hs.Add(h_nucCluster_src)
     hs.Add(h_noCascade)
+    hs.Add(h_noCascadePhoton)
     hs.Add(h_QE)
 
     hs.Draw("hist") 
@@ -344,6 +362,7 @@ def INCL_processing(filename):
     legend.SetBorderSize(0)
     legend.SetFillStyle(0) # Transparent
     legend.AddEntry(h_noCascade, "no cascade FSI", "f")
+    legend.AddEntry(h_noCascadePhoton, "no cascade FSI + photon", "f")
     legend.AddEntry(h_QE, "QE proton + de-excitation", "f")
     legend.AddEntry(h_multiNuc, "multiple nucleons", "f")
     #legend.AddEntry(h_multiNuc_src, "multiple nucleons, SRC", "f")
@@ -359,6 +378,7 @@ def INCL_processing(filename):
     h_total = h_nucCluster.Clone("h_total")
     #h_total.Add(h_nucCluster_src)
     h_total.Add(h_noCascade)
+    h_total.Add(h_noCascadePhoton)
     h_total.Add(h_QE)
     h_total.Add(h_multiNuc)
    # h_total.Add(h_multiNuc_src)
@@ -380,6 +400,7 @@ def INCL_processing(filename):
     r_nuc   = create_ratio(h_nucCluster, h_total)
     
     r_noCas = create_ratio(h_noCascade, h_total)
+    r_noCasP = create_ratio(h_noCascadePhoton, h_total)
     r_qe    = create_ratio(h_QE, h_total)
     r_mul   = create_ratio(h_multiNuc, h_total) 
     #r_mul_src   = create_ratio(h_multiNuc_src, h_total)
@@ -404,6 +425,7 @@ def INCL_processing(filename):
     x_axis.SetTitleOffset(1.0)
 
     r_noCas.Draw("HIST SAME")
+    r_noCasP.Draw("HIST SAME")
     r_qe.Draw("HIST SAME")
     r_mul.Draw("HIST SAME")
     #r_mul_src.Draw("hist SAME")
@@ -535,6 +557,7 @@ def INCL_processing(filename):
 
     h_nucCluster_pre = create_histo("h_nuc_prefsi", "Nuclear Clusters",       ROOT.kViolet-4, 3001, output_dic["nuclearCluster_pre"],n_bins,x_min,x_max)
     h_noCascade_pre  = create_histo("h_noC_prefsi", "No Cascade FSI",         ROOT.kOrange-4, 3001, output_dic["noCascadeFSI_pre"],n_bins,x_min,x_max)
+    h_noCascadePhoton_pre  = create_histo("h_noCP_prefsi", "No Cascade FSI + photon",         ROOT.kOrange-1, 3001, output_dic["noCascadeFSIPhoton_pre"],n_bins,x_min,x_max)
     h_QE_pre         = create_histo("h_qe_prefsi",  "QE Proton + De-ex",      ROOT.kOrange+7, 3001, output_dic["QE_deex_pre"],n_bins,x_min,x_max)
     h_multiNuc_pre   = create_histo("h_mul_prefsi", "Multiple Nucleons",      ROOT.kRed+2,    3001, output_dic["multipleNucleon_noCluster_pre"],n_bins,x_min,x_max)
     h_oneProton_pre  = create_histo("h_one_prefsi", "One Proton",             ROOT.kGreen,    3001, output_dic["oneProton_pre"],n_bins,x_min,x_max)
@@ -549,8 +572,9 @@ def INCL_processing(filename):
     hs3.Add(h_other_pre)
     hs3.Add(h_oneProton_pre)
     hs3.Add(h_multiNuc_pre)
-    hs3.Add(h_nucCluster_pre)
+    hs3.Add(h_nucCluster_pre) 
     hs3.Add(h_noCascade_pre)
+    hs3.Add(h_noCascadePhoton_pre)
     hs3.Add(h_QE_pre)
     hs3.Add(h_muonly_pre)
     hs3.Add(h_noproton_pre)
@@ -576,6 +600,7 @@ def INCL_processing(filename):
     legend4.SetBorderSize(0)
     legend4.SetFillStyle(0) # Transparent
     legend4.AddEntry(h_noCascade_pre, "no cascade FSI", "f")
+    legend4.AddEntry(h_noCascadePhoton_pre, "no cascade FSI + photon", "f")
     legend4.AddEntry(h_QE_pre, "QE proton + de-excitation", "f")
     legend4.AddEntry(h_multiNuc_pre, "multiple nucleons", "f")
     legend4.AddEntry(h_nucCluster_pre, "nuclear clusters", "f")
@@ -590,6 +615,7 @@ def INCL_processing(filename):
 
     h_total2 = h_nucCluster_pre.Clone("h_total")
     h_total2.Add(h_noCascade_pre)
+    h_total2.Add(h_noCascadePhoton_pre)
     h_total2.Add(h_QE_pre)
     h_total2.Add(h_multiNuc_pre)
     h_total2.Add(h_oneProton_pre)
@@ -598,6 +624,7 @@ def INCL_processing(filename):
 
     r_nuc1   = create_ratio(h_nucCluster_pre, h_total2)
     r_noCas1 = create_ratio(h_noCascade_pre, h_total2)
+    r_noCasPhot1 = create_ratio(h_noCascadePhoton_pre, h_total2)
     r_qe1    = create_ratio(h_QE_pre, h_total2)
     r_mul1   = create_ratio(h_multiNuc_pre, h_total2)
     r_one1   = create_ratio(h_oneProton_pre, h_total2)
@@ -624,6 +651,7 @@ def INCL_processing(filename):
 
 
     r_noCas1.Draw("HIST SAME")
+    r_noCasPhot1.Draw("HIST SAME")
     r_qe1.Draw("HIST SAME")
     r_mul1.Draw("HIST SAME")
     r_one1.Draw("HIST SAME")
@@ -786,6 +814,7 @@ def INCL_processing(filename):
     # Extracting the lists directly from the dictionary
     h_ex_nucCluster = create_histo("h_ex_nuc", "Nuclear Clusters",       ROOT.kViolet-4, 3001, output_dic["ex_nuclearCluster"], n_bins, x_min, x_max)
     h_ex_noCascade  = create_histo("h_ex_noC", "No Cascade FSI",         ROOT.kOrange-4, 3001, output_dic["ex_noCascadeFSI"], n_bins, x_min, x_max)
+    h_ex_noCascadePhoton  = create_histo("h_ex_noC", "No Cascade FSI + photon",         ROOT.kOrange-1, 3001, output_dic["ex_noCascadeFSIPhoton"], n_bins, x_min, x_max)
     h_ex_QE         = create_histo("h_ex_qe",  "QE Proton + De-ex",      ROOT.kOrange+7, 3001, output_dic["ex_QE_deex"], n_bins, x_min, x_max)
     h_ex_multiNuc   = create_histo("h_ex_mul", "Multiple Nucleons",      ROOT.kRed+2,    3001, output_dic["ex_multipleNucleon_noCluster"], n_bins, x_min, x_max)
     h_ex_oneProton  = create_histo("h_ex_one", "One Proton",             ROOT.kGreen,    3001, output_dic["ex_oneProton"], n_bins, x_min, x_max)
@@ -799,6 +828,7 @@ def INCL_processing(filename):
     hs7.Add(h_ex_multiNuc)
     hs7.Add(h_ex_nucCluster)
     hs7.Add(h_ex_noCascade)
+    hs7.Add(h_ex_noCascadePhoton)
     hs7.Add(h_ex_QE)
 
     hs7.Draw("hist") 
@@ -817,6 +847,7 @@ def INCL_processing(filename):
     legend7.SetBorderSize(0)
     legend7.SetFillStyle(0) # Transparent
     legend7.AddEntry(h_ex_noCascade, "no cascade FSI", "f")
+    legend7.AddEntry(h_ex_noCascadePhoton, "no cascade FSI + photon", "f")
     legend7.AddEntry(h_ex_QE, "QE proton + de-excitation", "f")
     legend7.AddEntry(h_ex_multiNuc, "multiple nucleons", "f")
     legend7.AddEntry(h_ex_nucCluster, "nuclear clusters", "f")

@@ -10,6 +10,7 @@ from incl_analysis_functions import *
 from default_processing import *
 from kdar_processing import *
 from paper_plots import *
+from deex_functions import *
 import numpy as np
 from array import array
 import sys 
@@ -287,6 +288,17 @@ def main():
             for file in input_files:
                 ccqe_combined_plots(file,additional_files)
 
+        elif function_to_run == "deex_multiplicity":
+            for file in input_files:
+                deex_multiplicity(file,additional_files)
+        elif function_to_run == "nocasc_pi":
+            for file in input_files:
+                nocasc_pi_ana(file,additional_files)
+
+        elif function_to_run == "deex_products":
+            for file in input_files:
+                plot_deex_vs_excitation_energy(file,additional_files)
+
         else:
             print(f"Error: '{function_to_run}' is not a recognized option.")
 
@@ -297,3 +309,7 @@ def main():
 
 
 main()
+
+
+
+
