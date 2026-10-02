@@ -434,6 +434,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
             ]
     """
 
+    """
     legend_name = ["INCL + ABLA", 
                 "NEUT Cascade", 
                 ]
@@ -444,6 +445,25 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 #(ROOT.kOrange + 7, 1),  # Modified to Petroff Red
                 #(ROOT.kOrange + 7, 4),  # Modified to Petroff Yellow
             ]
+    """
+    legend_name = ["No SRC Contribution", 
+                   "NEUT SRC",
+                   "NuWro SRC, no Kin. Cut",
+                   "NuWro SRC, 14 MeV Kin. Cut", 
+                   "NuWro SRC, iso Kin. Cut", 
+                ]
+    styles = [
+                
+                (ROOT.kAzure,1),
+                (ROOT.kBlue, 1), 
+                (ROOT.kOrange+7,1),
+                (ROOT.kRed,1), 
+                (ROOT.kMagenta,1), 
+            ]
+                #(ROOT.kBlue, 4),  # Modified to Petroff Grape
+                #(ROOT.kOrange + 7, 1),  # Modified to Petroff Red
+                #(ROOT.kOrange + 7, 4),  # Modified to Petroff Yellow
+
 
     #styles = [
     #    (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
@@ -510,7 +530,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_dat.SetTitle(";#delta #alpha _{T} [deg];Counts")
 
         # --- Momentum histograms ---
-        h_momp = ROOT.TH1D(f"h_momp_{filename_chunk}", "Total Proton Momentum Distribution", 60, 0.0, 1500)
+        h_momp = ROOT.TH1D(f"h_momp_{filename_chunk}", "Total Proton Momentum Distribution", 100, 0.0, 2000)
         h_momp.Sumw2()
         h_momp.SetTitle(";P_{p}^{Total} [MeV/c];Counts")
 
@@ -518,7 +538,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_momgamma.Sumw2()
         h_momgamma.SetTitle(";P_{#gamma}^{Total} [MeV/c];Counts")
 
-        h_momn = ROOT.TH1D(f"h_momn_{filename_chunk}", "Total Neutron Momentum Distribution", 100, 0.0, 1000)
+        h_momn = ROOT.TH1D(f"h_momn_{filename_chunk}", "Total Neutron Momentum Distribution", 50, 0.0, 1000)
         h_momn.Sumw2()
         h_momn.SetTitle(";P_{n}^{Total} [MeV/c];Counts")
 
@@ -662,8 +682,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                     
                     # Convert Kinetic Energy to Momentum (MeV/c)
                     if particle == 2212: # Proton
-                        #total_proton_mom += np.sqrt((energy+938.27)**2 - 938.27**2)
-                        total_proton_mom += energy
+                        total_proton_mom += np.sqrt((energy+938.27)**2 - 938.27**2)
+                        #total_proton_mom += energy
                         mult_p += 1
                     elif particle == 22: # Gamma
                         total_gamma_mom += energy # p = E for photon
@@ -809,7 +829,9 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         #ROOT.gPad.SetLeftMargin(0.12)
         
         #legend = ROOT.TLegend(0.52, 0.57, 0.9, 0.9)
-        legend = ROOT.TLegend(0.52, 0.77, 0.9, 0.9)
+        
+        legend = ROOT.TLegend(0.47, 0.65, 0.85, 0.9)
+        #legend = ROOT.TLegend(0.52, 0.77, 0.9, 0.9)
         legend.SetNColumns(1) 
         legend.SetTextFont(latex_font) 
         legend.SetBorderSize(0) 
@@ -862,7 +884,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         legend.Draw()
         return c, legend 
         
-    def draw_canvas_with_ratio(canvas_name, hist_list, ymax=None, ymin=None):
+    def draw_canvas_with_ratio(canvas_name, hist_list, ymax=None, ymin=None, ratio_min = 0.5, ratio_max = 1.5):
         c = ROOT.TCanvas(canvas_name, canvas_name, 600, 750)
         c.SetGrayscale(False)
         c.SetLeftMargin(0.12)   # Default is ~0.12
@@ -962,7 +984,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
             h_ratio.SetStats(0)
 
             h_ratio.SetTitle("")
-            h_ratio.GetYaxis().SetTitle("Ratio to {}".format(legend_name[0]))
+            h_ratio.GetYaxis().SetTitle("Ratio to {}".format("No SRC"))
             h_ratio.GetYaxis().CenterTitle()
             h_ratio.GetYaxis().SetNdivisions(505)
             h_ratio.GetYaxis().SetTitleSize(0.11)
@@ -982,8 +1004,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
             h_ratio.GetYaxis().CenterTitle(True)
 
             if i == 1:
-                h_ratio.SetMinimum(0.5)
-                h_ratio.SetMaximum(1.5)
+                h_ratio.SetMinimum(ratio_min)
+                h_ratio.SetMaximum(ratio_max)
                 h_ratio.Draw("HIST")
             else:
                 h_ratio.Draw("HIST SAME")
@@ -1011,7 +1033,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         return c, legend
 
     def draw_side_by_side_canvas(canvas_name, hist_list_energy, hist_list_mult, ymax_left=None, ymax_right=None):
-        c = ROOT.TCanvas(canvas_name, canvas_name, 1600, 600)
+        c = ROOT.TCanvas(canvas_name, canvas_name, 1400, 750)
         c.Divide(2, 1)
 
         def configure_and_draw(pad_idx, hist_list, ymax=None):
@@ -1021,7 +1043,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
             ROOT.gPad.SetBottomMargin(0.15) 
             ROOT.gPad.SetLeftMargin(0.12)
 
-            legend = ROOT.TLegend(0.60, 0.65, 0.85, 0.85) 
+            legend = ROOT.TLegend(0.35, 0.7, 0.60, 0.85) 
             legend.SetNColumns(1) 
             legend.SetTextFont(latex_font) 
             legend.SetBorderSize(0) 
@@ -1037,7 +1059,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 
                 h.SetLineColor(color)
                 h.SetLineStyle(style)
-                h.SetLineWidth(3) 
+                h.SetLineWidth(2) 
                 h.SetStats(0) 
 
                 h.GetXaxis().SetTitleFont(latex_font)
@@ -1045,11 +1067,17 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 h.GetYaxis().SetTitleFont(latex_font)
                 h.GetYaxis().SetLabelFont(latex_font)
                 h.GetXaxis().SetTitleSize(0.05) 
-                h.GetXaxis().SetLabelSize(0.04) 
+                h.GetXaxis().SetLabelSize(0.05) 
                 h.GetXaxis().SetTitleOffset(1.0)
-                h.GetYaxis().SetTitleSize(0.05) 
-                h.GetYaxis().SetLabelSize(0.04) 
                 h.GetYaxis().SetTitleOffset(1.1)
+                h.GetYaxis().SetTitleSize(0.05) 
+                h.GetYaxis().SetLabelSize(0.05) 
+
+                h.GetXaxis().CenterTitle(True)
+                h.GetYaxis().CenterTitle(True)
+
+                h.GetYaxis().SetMaxDigits(3)
+                h.GetXaxis().SetNoExponent(True)
 
                 if i == 0:
                     h.SetMaximum(ymax)
@@ -1067,96 +1095,10 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         c.legends = (leg_e, leg_m)
         return c, c.legends
     
-    def draw_kdar_canvas(canvas_name, hist_list):
-        c = ROOT.TCanvas(canvas_name, canvas_name, 800, 600)
-        ROOT.gPad.SetTickx(1)
-        ROOT.gPad.SetTicky(1)
-        ROOT.gPad.SetBottomMargin(0.15) 
-        ROOT.gPad.SetLeftMargin(0.12)
-
-        for name, h in hist_list:
-            if h.Integral() > 0:
-                h.Scale(1.0 / h.Integral())
-            h.SetLineWidth(3)
-
-        hs3 = ROOT.THStack("hs3", "")
-
-        for i, (name, h) in enumerate(hist_list):
-            color, style = styles[i % len(styles)]
-            h.SetLineColor(color)
-            h.SetLineStyle(style)
-            h.SetStats(0)
-            hs3.Add(h)
-
-        hs3.Draw("nostack hist") 
-        hs3.GetXaxis().SetTitle("Missing Energy [MeV]")
-        hs3.GetYaxis().SetTitle("Probability Density")
-        hs3.GetYaxis().SetTitleOffset(1.2)
-        hs3.GetXaxis().SetTitleFont(latex_font)
-        hs3.GetXaxis().SetLabelFont(latex_font)
-        hs3.GetYaxis().SetTitleFont(latex_font)
-        hs3.GetYaxis().SetLabelFont(latex_font)
-        hs3.GetXaxis().SetTitleSize(0.04) 
-        hs3.GetXaxis().SetLabelSize(0.03) 
-        hs3.GetYaxis().SetTitleSize(0.04) 
-        hs3.GetYaxis().SetLabelSize(0.03)
-
-        max_h3 = hs3.GetMaximum("nostack")
-
-        data_bin_centers = [
-            -7.5, -2.5, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 
-            42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5, 82.5, 87.5, 92.5
-        ]
-        data_values = [
-            0.005, 0.018, 0.015, 0.015, 0.050, 0.330, 0.160, 0.057, 0.060, 0.065, 
-            0.055, 0.045, 0.030, 0.020, 0.020, 0.010, 0.010, 0.008, 0.008, 0.005, 0.005
-        ]
-        data_errors = [
-            0.005, 0.015, 0.010, 0.010, 0.010, 0.035, 0.020, 0.015, 0.015, 0.015, 
-            0.015, 0.015, 0.010, 0.010, 0.010, 0.008, 0.008, 0.006, 0.006, 0.005, 0.005
-        ]
-
-        h_data = ROOT.TH1F("h_data", "Data (Stat. Error)", 21, -10.0, 95.0)
-
-        for center, val, err in zip(data_bin_centers, data_values, data_errors):
-            bin_idx = h_data.FindBin(center)
-            h_data.SetBinContent(bin_idx, val)
-            h_data.SetBinError(bin_idx, err)
-
-        h_data.SetLineColor(ROOT.kBlack)
-        h_data.SetLineWidth(3)
-        h_data.SetMarkerColor(ROOT.kBlack)
-        h_data.SetMarkerStyle(1)
-
-        if h_data.GetMaximum() > max_h3:
-            hs3.SetMaximum(h_data.GetMaximum() * 1.2)
-        else:
-            hs3.SetMaximum(max_h3 * 1.2)
-
-        h_data.Draw("SAME HIST P")
-        h_data.Draw("SAME E")
-
-        legend3 = ROOT.TLegend(0.45, 0.65, 0.88, 0.88)
-        legend3.SetBorderSize(0)
-        legend3.SetFillStyle(0) 
-        legend3.SetTextFont(latex_font)
-        legend3.SetTextSize(0.03)
-
-        legend3.AddEntry(h_data, "Data (Stat. Error)", "le")
-        for name, h in hist_list:
-            legend3.AddEntry(h, name, "l")
-            
-        legend3.Draw()
-        
-        c.hs3 = hs3
-        c.h_data = h_data
-        
-        return c, legend3
-
     # Aggregated property canvases
     c1, leg1 = draw_canvas("c_leading_proton", hist_list_proton)#, ymax=31000)
     c1.SaveAs("c_leading_proton.pdf")
-    c2, leg2 = draw_canvas("c_excitation_energy", hist_list_ex)
+    c2, leg2 = draw_canvas_with_ratio("c_excitation_energy", hist_list_ex,ratio_min=0.0,ratio_max=2.0)
     c3, leg3 = draw_canvas_with_ratio("c_avail_energy", hist_list_avail)#, ymax=34000)
     c4, leg4 = draw_canvas_with_ratio("c_nop_avail_energy", hist_list_nop_avail)#, ymax=30000)
     c13, leg13 = draw_canvas_with_ratio("c_non_incl_avail_energy", hist_list_non_incl_avail)#, ymax=35000)
@@ -1171,17 +1113,24 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     # Transverse kinematics canvases
     c16, leg16 = draw_canvas_with_ratio("c_dpt", hist_list_dpt)#, ymax=65000)
     c17, leg17 = draw_canvas_with_ratio("c_dat", hist_list_dat)#, ymax=26000)
+
+    c5_mom, leg5_mom = draw_canvas_with_ratio("c_tot_proton_mom", hist_list_momp)
+    c5_mult, leg5_mult = draw_canvas("c_tot_proton_mult", hist_list_mult_p)
     
-    # Particle Specific Split Canvases (Momentum + Multiplicity)
-    c5, legs5 = draw_side_by_side_canvas("c_tot_proton_mom_and_mult", hist_list_momp, hist_list_mult_p)#, ymax_left=23000, ymax_right=550000)
+    # Neutron plots (Momentum with ratio, Multiplicity without ratio)
+    c7_mom, leg7_mom = draw_canvas_with_ratio("c_tot_neutron_mom", hist_list_momn)
+    c7_mult, leg7_mult = draw_canvas("c_tot_neutron_mult", hist_list_mult_n)
+
+    # Other Particle Specific Split Canvases (Momentum + Multiplicity)
     c6, legs6 = draw_side_by_side_canvas("c_tot_gamma_mom_and_mult", hist_list_momgamma, hist_list_mult_gamma)
-    c7, legs7 = draw_side_by_side_canvas("c_tot_neutron_mom_and_mult", hist_list_momn, hist_list_mult_n)#, ymax_left=6500, ymax_right=550000)
     c8, legs8 = draw_side_by_side_canvas("c_tot_deuteron_mom_and_mult", hist_list_momd, hist_list_mult_d)#, ymax_left=4500, ymax_right=550000)
     c9, legs9 = draw_side_by_side_canvas("c_tot_triton_mom_and_mult", hist_list_momt, hist_list_mult_t)
     c15, legs15 = draw_side_by_side_canvas("c_tot_he3_mom_and_mult", hist_list_momhe3, hist_list_mult_he3)#, ymax_left=1600, ymax_right=550000)
     c10, legs10 = draw_side_by_side_canvas("c_tot_alpha_mom_and_mult", hist_list_moma, hist_list_mult_a)#, ymax_left=7000, ymax_right=350000)
     c11, legs11 = draw_side_by_side_canvas("c_tot_pi0_mom_and_mult", hist_list_mompi0, hist_list_mult_pi0)
     c12, legs12 = draw_side_by_side_canvas("c_tot_pipm_mom_and_mult", hist_list_mompipm, hist_list_mult_pipm)
+
+    c1, leg1 = draw_canvas("c_leading_proton", hist_list_proton)#, ymax=31000)
 
     canvases = [
         (c1, "c_leading_proton"),
@@ -1193,9 +1142,11 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         (c19, "c_total_energy"),
         (c16, "c_dpt"),
         (c17, "c_dat"),
-        (c5, "c_tot_proton_mom_and_mult"),
+        (c5_mom, "c_tot_proton_mom"),
+        (c5_mult, "c_tot_proton_mult"),
+        (c7_mom, "c_tot_neutron_mom"),
+        (c7_mult, "c_tot_neutron_mult"),
         (c6, "c_tot_gamma_mom_and_mult"),
-        (c7, "c_tot_neutron_mom_and_mult"),
         (c8, "c_tot_deuteron_mom_and_mult"),
         (c9, "c_tot_triton_mom_and_mult"),
         (c15, "c_tot_he3_mom_and_mult"),
@@ -1207,8 +1158,9 @@ def ccqe_combined_plots(filename, name, filename_list=None):
 
 
 
+
     output_pdf = "fruuuuuuuu.pdf"
-    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5, c6, c7, c8, c9, c15, c10, c11, c12]
+    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5_mom, c5_mult, c6, c7_mom, c7_mult, c8, c9, c15, c10, c11, c12]
 
     for i, canvas in enumerate(canvases):
         canvas.cd()
@@ -1233,9 +1185,11 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     c2.Write()
     c3.Write()
     c4.Write()
-    c5.Write()
+    c5_mult.Write()
+    c5_mom.Write()
     c6.Write()
-    c7.Write()
+    c7_mult.Write()
+    c7_mom.Write()
     c8.Write()
     c9.Write()
     c15.Write()
@@ -1250,6 +1204,11 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     c19.Write()  # ADDED: Write Total Energy canvas
     
     out_file.Close()
+
+
+
+
+
 
 def monoenergetic_CCQE_combined_plots():
 
