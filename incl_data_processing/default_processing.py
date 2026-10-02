@@ -1,14 +1,38 @@
 from incl_analysis_functions import *
 import ROOT
 import numpy as np
+import array
 import sys 
 import argparse
 
 
+font_id = 132
+ROOT.gStyle.SetTextFont(font_id)
+ROOT.gStyle.SetLegendFont(font_id)
+ROOT.gStyle.SetLabelFont(font_id, "XYZ")  # Axis tick labels
+ROOT.gStyle.SetTitleFont(font_id, "XYZ")  # Axis titles
+ROOT.gStyle.SetTitleFont(font_id, "")     # Histogram/Pad titles
+ROOT.gStyle.SetStatFont(font_id)
+
+# Create a dark gray/charcoal color (#333333 or #444444)
+dark_gray = ROOT.TColor.GetColor("#333333")
+
+# Apply color globally to axes, labels, titles, and frames
+ROOT.gStyle.SetAxisColor(dark_gray, "XYZ")   # Ticks and axis line color
+ROOT.gStyle.SetLabelColor(dark_gray, "XYZ")  # Axis numbers color
+ROOT.gStyle.SetTitleColor(dark_gray, "XYZ")  # Axis titles color
+ROOT.gStyle.SetFrameLineColor(dark_gray)     # Plot border box color
+ROOT.gStyle.SetTextColor(dark_gray)          # Default text color
+
+ROOT.gStyle.SetTickLength(0.015, "XYZ")
+ROOT.gStyle.SetNdivisions(306, "Y")
+ROOT.gStyle.SetGridColor(ROOT.kGray)
+ROOT.gStyle.SetOptTitle(0)
 
 ROOT.gSystem.Load("libNEUTROOTClass.so")
 ROOT.gSystem.Load("libNEUTOutput.so")
 ROOT.gSystem.Load("libNEUTReWeight.so")
+
 ROOT.TH1.AddDirectory(False)
 
 
@@ -149,8 +173,8 @@ def process_events(t):
                 output_dic["ex_protonPion"].append(excitation_E) # Added
 
             elif intChannel == intChannel_CCQE.other:
-                other_counter += 1 
-                nvect_class.Print()
+                #other_counter += 1 
+                #nvect_class.Print()
                 output_dic["other"].append(HMP_proton)
                 output_dic["other_at"].append(dat)
                 output_dic["other_pt"].append(DPT)
@@ -216,7 +240,7 @@ def process_events(t):
 
             elif intChannel == intChannel_CCQE.other:
                 other_counter += 1 
-                nvect_class.Print()
+                #nvect_class.Print()
                 output_dic["src_other"].append(HMP_proton)
                 output_dic["src_other_at"].append(dat)
                 output_dic["src_other_pt"].append(DPT)
@@ -262,11 +286,11 @@ def process_events(t):
             #nvect_class.Print()
 
         if eventType == EventType.SRC or eventType == EventType.NC_SRC:
-            nvect_class.Print()
+            #nvect_class.Print()
             print(miss_p, miss_E)
             h_src.Fill(miss_p, miss_E)
         elif eventType == EventType.MF or eventType == EventType.NC_mf:
-            nvect_class.Print()
+           # nvect_class.Print()
             print((miss_p, miss_E))
             h_nonsrc.Fill(miss_p, miss_E)
 
@@ -285,7 +309,7 @@ def INCL_processing(filename):
 
     output_dic,h_src,h_nonsrc = process_events(t)
 
-    print("other counter", other_counter)  
+    #print("other counter", other_counter)  
 
     file = ROOT.TFile("incl_analysis_test_{}.root".format(filename_chunk),"RECREATE")
 
@@ -801,27 +825,60 @@ def INCL_processing(filename):
 
     c7 = ROOT.TCanvas("c7", "Excitation_energy_distribution_ex", 800, 600)
     c7.cd() 
-    pad7 = ROOT.TPad("pad7", "pad7", 0, 0.3, 1, 1.0)
+    pad7 = ROOT.TPad("pad7", "pad7", 0.0, 0.1, 1.0, 1.0)
     pad7.SetBottomMargin(0.02) 
     pad7.SetLeftMargin(0.12)
     pad7.SetTicks(1, 1)        
+
+    pad7.SetGrid(1, 1)         
+
     pad7.Draw()
+    pad7.cd() 
+    
+    bin_edges = []
 
-    n_bins = 300
-    x_min = -5
-    x_max = 60
+    # Range 1: -5.0 to 0.0 (step 0.3) -> x10 integers: -50 to 0, step 3
+    bin_edges.extend([round(x / 10, 1) for x in range(-50, 1, 3)])
 
-    # Extracting the lists directly from the dictionary
-    h_ex_nucCluster = create_histo("h_ex_nuc", "Nuclear Clusters",       ROOT.kViolet-4, 3001, output_dic["ex_nuclearCluster"], n_bins, x_min, x_max)
-    h_ex_noCascade  = create_histo("h_ex_noC", "No Cascade FSI",         ROOT.kOrange-4, 3001, output_dic["ex_noCascadeFSI"], n_bins, x_min, x_max)
-    h_ex_noCascadePhoton  = create_histo("h_ex_noC", "No Cascade FSI + photon",         ROOT.kOrange-1, 3001, output_dic["ex_noCascadeFSIPhoton"], n_bins, x_min, x_max)
-    h_ex_QE         = create_histo("h_ex_qe",  "QE Proton + De-ex",      ROOT.kOrange+7, 3001, output_dic["ex_QE_deex"], n_bins, x_min, x_max)
-    h_ex_multiNuc   = create_histo("h_ex_mul", "Multiple Nucleons",      ROOT.kRed+2,    3001, output_dic["ex_multipleNucleon_noCluster"], n_bins, x_min, x_max)
-    h_ex_oneProton  = create_histo("h_ex_one", "One Proton",             ROOT.kGreen,    3001, output_dic["ex_oneProton"], n_bins, x_min, x_max)
-    h_ex_protonPion = create_histo("h_ex_pion","Proton + Pion",          ROOT.kYellow-9, 3001, output_dic["ex_protonPion"], n_bins, x_min, x_max)
-    h_ex_other      = create_histo("h_ex_oth", "No protons",             ROOT.kGray,     3001, output_dic["ex_no_protons"], n_bins, x_min, x_max)
+    # Range 2: 0.0 to 6.0 (step 0.3) -> x10 integers: 0 to 60, step 3
+    bin_edges.extend([round(x / 10, 1) for x in range(0, 51, 3)])
 
-    hs7 = ROOT.THStack("hs7_ExcitationE", "excitationE_distribution_ex")
+    # Range 3: 6.0 to 60.0 (step 1.0) -> x10 integers: 60 to 600, step 10
+    bin_edges.extend([round(x / 10, 1) for x in range(60, 601, 10)])
+
+    # Deduplicate overlapping boundary values while preserving order
+    bin_edges = sorted(list(set(bin_edges)))
+
+    xbins = array.array("f", bin_edges)
+    n_bins = len(xbins) - 1
+    
+    h_ex_nucCluster       = create_histo("h_ex_nuc", "Nuclear Cluster Production",       ROOT.kViolet-4, 3001, output_dic["ex_nuclearCluster"], n_bins, xbins)
+    h_ex_noCascade        = create_histo("h_ex_noC", "No Cascade FSI",         ROOT.kOrange-4, 3001, output_dic["ex_noCascadeFSI"], n_bins, xbins)
+    h_ex_noCascadePhoton  = create_histo("h_ex_noC_p", "No Cascade FSI w/ photon", ROOT.kOrange-1, 3001, output_dic["ex_noCascadeFSIPhoton"], n_bins, xbins)
+    h_ex_QE               = create_histo("h_ex_qe",  "QE Proton + De-excitation",      ROOT.kOrange+7, 3001, output_dic["ex_QE_deex"], n_bins, xbins)
+    h_ex_multiNuc         = create_histo("h_ex_mul", "Multiple Nucleon Production",      ROOT.kRed+2,    3001, output_dic["ex_multipleNucleon_noCluster"], n_bins, xbins)
+    h_ex_oneProton        = create_histo("h_ex_one", "One Proton",             ROOT.kGreen,    3001, output_dic["ex_oneProton"], n_bins, xbins)
+    h_ex_protonPion       = create_histo("h_ex_pion","Proton + Pion",          ROOT.kYellow-9, 3001, output_dic["ex_protonPion"], n_bins, xbins)
+    h_ex_other            = create_histo("h_ex_oth", "No protons",             ROOT.kGray,     3001, output_dic["ex_no_protons"], n_bins, xbins)
+
+    all_histograms = [
+        h_ex_nucCluster,
+        h_ex_noCascade,
+        h_ex_noCascadePhoton,
+        h_ex_QE,
+        h_ex_multiNuc,
+        h_ex_oneProton,
+        h_ex_protonPion,
+        h_ex_other,
+        ]
+
+    total_events = sum(h.Integral() for h in all_histograms)
+
+    for h in all_histograms:
+        h.Scale(1.0 / total_events, "width")
+
+
+    hs7 = ROOT.THStack("hs7_ExcitationE", "")
     hs7.Add(h_ex_protonPion)
     hs7.Add(h_ex_other)
     hs7.Add(h_ex_oneProton)
@@ -832,73 +889,97 @@ def INCL_processing(filename):
     hs7.Add(h_ex_QE)
 
     hs7.Draw("hist") 
-    hs7.SetTitle("; excitation E [MeV];Number of Events") 
 
     hs7.GetYaxis().SetLabelSize(0.03)
     hs7.GetYaxis().SetTitleSize(0.04)
     hs7.GetYaxis().SetTitleOffset(1.1)
 
-    hs7.GetXaxis().SetTitle("Excitation Energy [MeV]")
+    hs7.GetXaxis().SetTitle("E_{x} [MeV]")
+    hs7.GetYaxis().SetTitle("Normalised Counts")
 
     max_h = hs7.GetMaximum()
     hs7.SetMaximum(max_h * 1.2) 
 
     legend7 = ROOT.TLegend(0.55, 0.55, 0.88, 0.88)
     legend7.SetBorderSize(0)
-    legend7.SetFillStyle(0) # Transparent
-    legend7.AddEntry(h_ex_noCascade, "no cascade FSI", "f")
-    legend7.AddEntry(h_ex_noCascadePhoton, "no cascade FSI + photon", "f")
-    legend7.AddEntry(h_ex_QE, "QE proton + de-excitation", "f")
-    legend7.AddEntry(h_ex_multiNuc, "multiple nucleons", "f")
-    legend7.AddEntry(h_ex_nucCluster, "nuclear clusters", "f")
-    legend7.AddEntry(h_ex_oneProton, "one proton", "f")
-    legend7.AddEntry(h_ex_protonPion, "proton + pion", "f")
-    legend7.AddEntry(h_ex_other, "no protons", "f")
+    legend7.SetFillColor(ROOT.kWhite)
+    legend7.SetFillStyle(1001) # Solid fill
+    legend7.AddEntry(h_ex_noCascade, "No Cascade FSI", "f")
+    legend7.AddEntry(h_ex_noCascadePhoton, "No Cascade FSI w/ #gamma", "f")
+    legend7.AddEntry(h_ex_QE, "QE Proton + Deexcitation", "f")
+    legend7.AddEntry(h_ex_multiNuc, "Multiple Nucleons", "f")
+    legend7.AddEntry(h_ex_nucCluster, "Nuclear Cluster Production", "f")
+    legend7.AddEntry(h_ex_oneProton, "Elastic FSI", "f")
+    legend7.AddEntry(h_ex_protonPion, "Proton + Pion", "f")
+    legend7.AddEntry(h_ex_other, "No Protons", "f")
 
     legend7.Draw()
+    pad7.Update()
 
     c9 = ROOT.TCanvas("c9", "Excitation_energy_distribution_ex", 800, 600)
     c9.cd() 
-    pad9 = ROOT.TPad("pad7", "pad7", 0, 0.3, 1, 1.0)
+    pad9 = ROOT.TPad("pad9", "pad9", 0, 0.0, 1.0, 1.0)
     pad9.SetBottomMargin(0.02) 
     pad9.SetLeftMargin(0.12)
     pad9.SetTicks(1, 1)        
+    pad9.SetGrid(1, 1)         
     pad9.Draw()
+    pad9.cd() 
 
-    n_bins = 150
-    x_min = -50
-    x_max = 60
+    bin_edges = []
+    x = -60.0
+    while x < -6.0:
+        bin_edges.append(x)
+        x += 1.0
+
+    while x < 6.0:
+        bin_edges.append(x)
+        x += 0.08
+
+    while x <= 60.0:
+        bin_edges.append(x)
+        x += 0.8
+
+    bins_array = array.array("d", bin_edges)
+    n_bins = len(bins_array) - 1
 
     # Extracting the lists directly from the dictionary
-    h_ex_MF         = create_histo("h_ex_mf", "Mean Field",             ROOT.kOrange+7, 3001, output_dic["ex_mf"], n_bins, x_min, x_max)
-    h_ex_src        = create_histo("h_ex_src", "SRC",                   ROOT.kBlue,     3001, output_dic["ex_src"], n_bins, x_min, x_max)
-    h_ex_2p2h       = create_histo("h_ex_2p2h", "2p2h",                 ROOT.kTeal+3,    3001, output_dic["ex_2p2h"], n_bins, x_min, x_max)
+    h_ex_MF         = create_histo("h_ex_mf", "Mean Field",             ROOT.kOrange+7, 3001, output_dic["ex_mf"], n_bins, bins_array)
+    h_ex_src        = create_histo("h_ex_src", "SRC",                   ROOT.kBlue,     3001, output_dic["ex_src"], n_bins, bins_array)
+    # h_ex_2p2h       = create_histo("h_ex_2p2h", "2p2h",                 ROOT.kTeal+3,    3001, output_dic["ex_2p2h"], n_bins, x_min, x_max)
+    total_events = h_ex_MF.Integral() + h_ex_src.Integral()
+    h_ex_MF.Scale(1.0 / total_events, "width")
+    h_ex_src.Scale(1.0 / total_events, "width")             
 
+    hs9 = ROOT.THStack("hs9_ExcitationE", "") 
 
-
-    hs9 = ROOT.THStack("hs9_ExcitationE", "excitationE_distribution_ex")
     hs9.Add(h_ex_MF)
     hs9.Add(h_ex_src)
-    hs9.Add(h_ex_2p2h)
+   # hs9.Add(h_ex_2p2h)
 
     hs9.Draw("hist") 
-    hs9.SetTitle("; excitation E [MeV];Number of Events") 
 
-    hs9.GetYaxis().SetLabelSize(0.03)
-    hs9.GetYaxis().SetTitleSize(0.04)
+    hs9.GetYaxis().SetLabelSize(0.04)
+    hs9.GetYaxis().SetTitleSize(0.05)
     hs9.GetYaxis().SetTitleOffset(1.1)
 
-    hs9.GetXaxis().SetTitle("Excitation Energy [MeV]")
+    hs9.GetXaxis().SetTitleSize(0.05)
+    hs9.GetXaxis().SetLabelSize(0.04)
+    hs9.GetXaxis().SetTitleOffset(1.1)
+
+
+    hs9.GetXaxis().SetTitle("E_{x} [MeV]")
+    hs9.GetYaxis().SetTitle("Normalised Counts")
 
     max_h = hs9.GetMaximum()
     hs9.SetMaximum(max_h * 1.2) 
 
     legend9 = ROOT.TLegend(0.55, 0.55, 0.88, 0.88)
     legend9.SetBorderSize(0)
-    legend9.SetFillStyle(0) # Transparent
+    #legend9.SetFillStyle(0) # Transparent
     legend9.AddEntry(h_ex_MF, "Mean Field", "f")
-    legend9.AddEntry(h_ex_src, "src", "f")
-    legend9.AddEntry(h_ex_2p2h, "2p2h", "f")
+    legend9.AddEntry(h_ex_src, "SRC", "f")
+   # legend9.AddEntry(h_ex_2p2h, "2p2h", "f")
 
     legend9.Draw()
 

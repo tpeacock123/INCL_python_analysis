@@ -16,70 +16,113 @@ ROOT.gSystem.Load("libNEUTReWeight.so")
 ROOT.TH1.AddDirectory(False)
 
 
-import ROOT
-def deex_multiplicity(filename, filename_list=None):
+ROOT.gROOT.GetColor(ROOT.kBlue).SetRGB(87 / 255.0, 144 / 255.0, 252 / 255.0)  # #5790FC
+ROOT.gROOT.GetColor(ROOT.kOrange + 7).SetRGB(
+    248 / 255.0, 156 / 255.0, 32 / 255.0
+)  # #F89C20
+ROOT.gROOT.GetColor(ROOT.kRed).SetRGB(228 / 255.0, 37 / 255.0, 54 / 255.0)  # #E42536
+ROOT.gROOT.GetColor(ROOT.kMagenta).SetRGB(
+    150 / 255.0, 74 / 255.0, 139 / 255.0
+)  # #964A8B
+ROOT.gROOT.GetColor(ROOT.kAzure).SetRGB(
+    156 / 255.0, 156 / 255.0, 161 / 255.0
+)  # #9c9ca1
+
+font_id = 132
+ROOT.gStyle.SetTextFont(font_id)
+ROOT.gStyle.SetLegendFont(font_id)
+ROOT.gStyle.SetLabelFont(font_id, "XYZ")  # Axis tick labels
+ROOT.gStyle.SetTitleFont(font_id, "XYZ")  # Axis titles
+ROOT.gStyle.SetTitleFont(font_id, "")     # Histogram/Pad titles
+
+ROOT.TGaxis.SetMaxDigits(3)
+ROOT.gStyle.SetLabelSize(5, "XYZ")        # Axis tick labels
+ROOT.gStyle.SetTitleSize(5, "XYZ")
+
+ROOT.gStyle.SetStatFont(font_id)
+ROOT.gStyle.SetPadGridX(True)
+ROOT.gStyle.SetPadGridY(True)
+ROOT.gStyle.SetNdivisions(304, "XY")
+
+ROOT.gSystem.Load("libNEUTROOTClass.so")
+ROOT.gSystem.Load("libNEUTOutput.so")
+ROOT.gSystem.Load("libNEUTReWeight.so")
+ROOT.TH1.AddDirectory(False)
+ROOT.TColor.SetGrayscale(False)
+ROOT.gROOT.SetBatch(True)
+ROOT.gStyle.SetOptStat(0)
+
+
+
+def deex_multiplicity(filename, name, filename_list=None):
     if filename_list is None:
         filename_list = [filename]
     else:
         filename_list = list(filename_list)
         if filename not in filename_list:
-            filename_list.append(filename)
+            filename_list.insert(0, filename)
+    
 
     # Setup output ROOT file
     filename_chunk = filename.split(".")[0].split("out_")[-1]
-    out_file = ROOT.TFile(f"multiplicity_{filename_chunk}_SRC.root", "RECREATE")
+    out_file = ROOT.TFile(f"multiplicity_{name}_deex.root", "RECREATE")
+    latex_font = 132
 
+    # Fixed: Replaced "#gamma" with "γ" (or "#gamma ") to prevent TLatex scaling bug
     pdg_map = {
         22: "#gamma",
         2212: "p",
         2112: "n",
-        1000010020: "d",
-        1000010030: "t",
+        1000010020: "D",
+        1000010030: "T",
         1000020040: "#alpha",
-        211: "pi+",
-        -211: "pi-",
-        111: "pi0"
     }
 
-    colors = [
-        ROOT.kBlack, ROOT.kRed + 1, ROOT.kBlue + 1, 
-        ROOT.kGreen + 2, ROOT.kMagenta + 1, ROOT.kOrange + 7, ROOT.kCyan + 2
-    ]
+    labels= ["INCL + ABLA", "NEUT Cascade", ]
+    colors = [ROOT.kBlue, ROOT.kAzure]
+    styles = [ 1,1 ]
+    
+    """
+    labels = ["SF", "Nieves LFG"]
+    colors = [ROOT.kBlue, ROOT.kOrange + 7, ROOT.kMagenta, ROOT.kRed]
+    styles = [1, 1, 8, 2, 1]
+    """
 
     histograms_1d = []
     canvases_2d = []
-    histograms_2d = [] 
+    histograms_2d = []
 
     for idx, fname in enumerate(filename_list):
         fname_chunk = fname.split(".")[0].split("out_")[-1]
 
         f_in = ROOT.TFile(fname)
-        t = f_in.Get("neuttree")   
+        t = f_in.Get("neuttree")
 
         particle_counts = {label: 0 for label in pdg_map.values()}
         counter = 0
         nbins = len(pdg_map)
 
-
         h2_energy = ROOT.TH2D(
-            f"h2_energy_{fname_chunk}", 
-            f"Energy vs Particle Species ({fname_chunk});Particle Species;Energy (GeV)", 
-            nbins, 0, nbins, 
-            200, 0.0, 750 
+            f"h2_energy_{fname_chunk}",
+            f"Energy vs Particle Species ({fname_chunk});Particle Species;Energy (GeV)",
+            nbins, 0, nbins,
+            200, 0.0, 750
         )
         h2_energy.SetStats(0)
 
         for i, label in enumerate(pdg_map.values(), start=1):
             h2_energy.GetXaxis().SetBinLabel(i, label)
 
-        for event in t:
+        for i, event in enumerate(t):
+            if i == 500000:
+                break
             nvect = event.vectorbranch
-            nvect_class = nvect_reader(nvect) 
+            nvect_class = nvect_reader(nvect)
 
-            if nvect_class.eventType == EventType.SRC or nvect_class.eventType == EventType.twop2h: 
+            if nvect_class.eventType in (EventType.MF, EventType.SRC):
                 counter += 1
                 particles, energies = nvect_class.particles()
-                
+
                 for particle, p_energy in zip(particles, energies):
                     if particle in pdg_map:
                         label = pdg_map[particle]
@@ -94,10 +137,10 @@ def deex_multiplicity(filename, filename_list=None):
 
         # Setup 1D Multiplicity Histogram
         multiplicities = {label: count / counter for label, count in particle_counts.items()}
-        
+
         h_mult = ROOT.TH1D(
-            f"h_mult_{fname_chunk}", 
-            "Average Particle Multiplicity per Event;Particle Species;Average Multiplicity / Event", 
+            f"h_mult_{fname_chunk}",
+            ";Particle Species;Average Multiplicity / Event",
             nbins, 0, nbins
         )
 
@@ -107,56 +150,74 @@ def deex_multiplicity(filename, filename_list=None):
 
         color = colors[idx % len(colors)]
         h_mult.SetLineColor(color)
-        h_mult.SetLineWidth(3)
-        h_mult.SetStats(0)
-        h_mult.GetXaxis().SetLabelSize(0.05)
+        h_mult.SetLineStyle(styles[idx % len(styles)])
+        h_mult.SetLineWidth(4)
+        h_mult.GetXaxis().SetTitleFont(latex_font)
+        h_mult.GetXaxis().SetLabelFont(latex_font)
+        h_mult.GetYaxis().SetTitleFont(latex_font)
+        h_mult.GetYaxis().SetLabelFont(latex_font)
+        h_mult.GetXaxis().SetTitleSize(0.05) 
+        h_mult.GetXaxis().SetLabelSize(0.05) 
+        h_mult.GetXaxis().SetTitleOffset(1.0)
+
+        h_mult.GetYaxis().SetTitleSize(0.05) 
+        h_mult.GetYaxis().SetLabelSize(0.05) 
         h_mult.GetYaxis().SetTitleOffset(1.2)
 
         histograms_1d.append((fname_chunk, h_mult))
 
         c2 = ROOT.TCanvas(f"c2_energy_{fname_chunk}", f"Energy - {fname_chunk}", 800, 600)
-        c2.SetRightMargin(0.15) # Room for colorbar
+        c2.SetRightMargin(0.15)
         h2_energy.Draw("COLZ")
         c2.Update()
-        
+
         canvases_2d.append(c2)
-        histograms_2d.append(h2_energy)  # <--- ADDED THIS: Keeps reference alive during the loop
+        histograms_2d.append(h2_energy)
 
     if not histograms_1d:
         print("No valid ROOT objects created.")
         out_file.Close()
         return
 
-    canvas_mult = ROOT.TCanvas("c_multiplicity_summary", "Particle Multiplicity Comparison", 800, 600)
+    canvas_mult = ROOT.TCanvas("c_multiplicity_summary", "Particle Multiplicity Comparison", 650, 600)
     canvas_mult.SetGridy()
+    canvas_mult.SetLeftMargin(0.12)
+    canvas_mult.SetRightMargin(0.08)
+    canvas_mult.SetTopMargin(0.06)
+    canvas_mult.SetBottomMargin(0.12)
 
-    legend = ROOT.TLegend(0.68, 0.70, 0.88, 0.88)
-    legend.SetBorderSize(1)
-    legend.SetFillColor(0)
-
-    max_y = max(h.GetMaximum() for _, h in histograms_1d)
+    legend = ROOT.TLegend(0.52, 0.77, 0.9, 0.9)
+    legend.SetNColumns(1) 
+    legend.SetTextFont(latex_font) 
+    legend.SetBorderSize(0) 
+    legend.SetFillStyle(1001)  # Solid fill
+    legend.SetFillColor(ROOT.kWhite)
+    legend.SetTextSize(0.03) 
 
     canvas_mult.cd()
     for idx, (fname_chunk, h_mult) in enumerate(histograms_1d):
         if idx == 0:
-            h_mult.SetMaximum(3.0)
+            h_mult.SetMaximum(2.0)
+            # Fixed: Set axis title properties on the primary histogram
+            h_mult.GetXaxis().CenterTitle(True)
+            h_mult.GetYaxis().CenterTitle(True)
             h_mult.Draw("HIST")
         else:
             h_mult.Draw("HIST SAME")
 
-        legend.AddEntry(h_mult, fname_chunk, "l")
+        label_text = labels[idx] if idx < len(labels) else fname_chunk
+        legend.AddEntry(h_mult, label_text, "l")
 
     legend.Draw()
     canvas_mult.Update()
 
+    canvas_mult.Print(f"multiplicity_{name}_deex.pdf")
+
     out_file.cd()
-    canvas_mult.Write()  
+    canvas_mult.Write()
 
     for c2 in canvases_2d:
-        c2.Write()       
-
-    #for h2 in histograms_2d:
-    #    h2.Write()  # <--- ADDED THIS: Writes raw 2D histograms to file as well
+        c2.Write()
 
     out_file.Close()
 
@@ -394,7 +455,7 @@ def plot_deex_vs_excitation_energy(filename, filename_list=None, use_log_y=False
     for idx, (pdg, label) in enumerate(deex_pdg_map.items()):
         h = ROOT.TH1D(
             f"h_deex_count_{pdg}_{filename_chunk}",
-            f";E_{{exc}} (MeV);Normalized Yield (A.U.)",
+            f";E_{{x}} [MeV];Counts",
             nbins, e_min, e_max
         )
         color = colors[idx % len(colors)]
@@ -447,7 +508,8 @@ def plot_deex_vs_excitation_energy(filename, filename_list=None, use_log_y=False
     # Clean transparent legend
     legend = ROOT.TLegend(0.72, 0.58, 0.88, 0.88)
     legend.SetBorderSize(0)
-    legend.SetFillStyle(0)
+    legend.SetFillColor(ROOT.kWhite)  
+    legend.SetFillStyle(1001)
     legend.SetTextSize(0.04)
 
     max_y = max([h.GetMaximum() for h in hists.values()] or [1.0])
@@ -474,3 +536,110 @@ def plot_deex_vs_excitation_energy(filename, filename_list=None, use_log_y=False
     out_file.Close()
 
     return canvas
+
+
+def plot_photon_energy(filename, filename_list=None):
+    if filename_list is None:
+        filename_list = [filename]
+    else:
+        filename_list = list(filename_list)
+        if filename not in filename_list:
+            filename_list.append(filename)
+
+    # Setup output ROOT file
+    filename_chunk = filename.split(".")[0].split("out_")[-1]
+    out_file = ROOT.TFile(f"photon_energy_{filename_chunk}_SRC.root", "RECREATE")
+
+    colors = [
+        ROOT.kBlack, ROOT.kRed + 1, ROOT.kBlue + 1, 
+        ROOT.kGreen + 2, ROOT.kMagenta + 1, ROOT.kOrange + 7, ROOT.kCyan + 2
+    ]
+
+    histograms_1d = []
+
+    for idx, fname in enumerate(filename_list):
+        fname_chunk = fname.split(".")[0].split("out_")[-1]
+
+        f_in = ROOT.TFile(fname)
+        t = f_in.Get("neuttree")   
+
+        # Set up 1D histogram for photon energy (PDG 22)
+        # Using the same binning as your original 2D plot (200 bins, 0 to 750)
+        h_energy = ROOT.TH1D(
+            f"h_photon_energy_{fname_chunk}", 
+            f"Photon Energy Distribution;Energy (MeV);Counts", 
+            400, -10, 30 
+        )
+        # Detach from the file directory so it isn't deleted when f_in closes
+        h_energy.SetDirectory(0) 
+
+        counter = 0
+
+        for event in t:
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect) 
+
+            if nvect_class.eventType == EventType.MF: 
+                counter += 1
+                particles, energies = nvect_class.particles()
+
+                e_sum = 0 
+                for particle, p_energy in zip(particles, energies):
+                    if particle == 22: # 22 is the PDG code for a photon
+
+                        e_sum += p_energy
+                print(e_sum)
+                if e_sum != 0:
+                    h_energy.Fill(e_sum)
+
+        f_in.Close()
+
+        if counter == 0:
+            print(f"Warning: No events processed for {fname}")
+            continue
+
+        # Styling
+        color = colors[idx % len(colors)]
+        h_energy.SetLineColor(color)
+        h_energy.SetLineWidth(2)
+        h_energy.SetStats(0)
+        h_energy.GetXaxis().SetTitleOffset(1.2)
+        h_energy.GetYaxis().SetTitleOffset(1.2)
+
+        histograms_1d.append((fname_chunk, h_energy))
+
+    if not histograms_1d:
+        print("No valid ROOT objects created.")
+        out_file.Close()
+        return
+
+    # Canvas for overlaid histograms
+    canvas_energy = ROOT.TCanvas("c_photon_energy", "Photon Energy Comparison", 800, 600)
+    canvas_energy.SetGridy()
+
+    legend = ROOT.TLegend(0.68, 0.70, 0.88, 0.88)
+    legend.SetBorderSize(1)
+    legend.SetFillColor(0)
+
+    # Find the global maximum Y value to scale the Y-axis properly
+    max_y = max(h.GetMaximum() for _, h in histograms_1d)
+
+    canvas_energy.cd()
+    for idx, (fname_chunk, h_energy) in enumerate(histograms_1d):
+        if idx == 0:
+            h_energy.SetMaximum(max_y * 1.2) # Give 20% headroom above the highest peak
+            h_energy.Draw("HIST")
+        else:
+            h_energy.Draw("HIST SAME")
+
+        legend.AddEntry(h_energy, fname_chunk, "l")
+
+    legend.Draw()
+    canvas_energy.Update()
+
+    out_file.cd()
+    canvas_energy.Write()  
+
+    out_file.Close()
+
+    return canvas_energy, histograms_1d

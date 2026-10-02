@@ -11,6 +11,7 @@ from default_processing import *
 from kdar_processing import *
 from paper_plots import *
 from deex_functions import *
+from nocasc_pi_ana import *
 import numpy as np
 from array import array
 import sys 
@@ -237,10 +238,12 @@ def main():
         )
     parser.add_argument('-i', '--input', nargs='+', help="Input file(s). You can put more than one in to process more than 1 files to get different outputs.")
     parser.add_argument("-a", "--additional_file",  nargs='+', help=" additional file/s. For some options (additional files, spectral_function2d,SRC_plot, CCQE_combined plot)")
+    parser.add_argument("-n", "--name",nargs='+', help=" filrname. e options (additional files, spectral_function2d,SRC_plot, CCQE_combined plot)")
     args = parser.parse_args()
 
     input_files = args.input if args.input else []
     additional_files = args.additional_file if args.input else []
+    name = args.name if args.name else ""
 
     for file in input_files:
         print(f"Logic: Input file queued: '{file}'")
@@ -286,18 +289,47 @@ def main():
 
         elif function_to_run == "CCQE_comps":
             for file in input_files:
-                ccqe_combined_plots(file,additional_files)
+                ccqe_combined_plots(file,name,additional_files)
+
+        elif function_to_run == "mono_CCQE_comps":
+            monoenergetic_CCQE_combined_plots()
 
         elif function_to_run == "deex_multiplicity":
             for file in input_files:
-                deex_multiplicity(file,additional_files)
+                deex_multiplicity(file, name, additional_files)
         elif function_to_run == "nocasc_pi":
             for file in input_files:
-                nocasc_pi_ana(file,additional_files)
+                nocasc_pi_ana(file, name, additional_files)
 
         elif function_to_run == "deex_products":
             for file in input_files:
                 plot_deex_vs_excitation_energy(file,additional_files)
+
+        elif function_to_run == "photon_energies":
+            for file in input_files:
+                plot_photon_energy(file,additional_files)
+
+        elif function_to_run == "stacked_multiplicity":
+            for file in input_files:
+                ccqe_stacked_plots(file,additional_files)
+
+        elif function_to_run == "E_reco":
+            for file in input_files:
+                e_reco_bias_combined_plots(file, name, additional_files)
+
+        elif function_to_run == "E_avail2d":
+            for file in input_files:
+                e_avail_2d_combined_plots(file, name, additional_files)
+
+        elif function_to_run == "neutrons_per_muon":
+            for file in input_files:
+                neutrons_per_muon_mom(file,name,additional_files)
+
+        elif function_to_run == "neutron_multiplicity":
+            for file in input_files:
+                neutrons_per_neutrino_E(file,name,additional_files)
+
+              
 
         else:
             print(f"Error: '{function_to_run}' is not a recognized option.")

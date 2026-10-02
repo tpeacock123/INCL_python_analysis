@@ -45,8 +45,8 @@ class kdar_measurements(nvect_reader):
                 E_nu = np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])) 
             if pinfo.fPID == abs(13):
                 T_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 105.7**2) - 105.7
-            if (D2 == True and pinfo.fPID == abs(1002) and (pinfo.fIsAlive == 1)):
-                T_had.append(np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + (2.014*931.5)**2) - (2*931.5))
+            #if (D2 == True and pinfo.fPID == abs(1002) and (pinfo.fIsAlive == 1)):
+            #    T_had.append(np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + (2.014*931.5)**2) - (2*931.5))
             
         E_vis = T_lep + sum(T_had)
 
@@ -163,7 +163,8 @@ def missing_energy_kdar(filename1,filename_list=None):
 
     if filename_list:
         for file in filename_list:
-            filename_chunk_temp = (file.split("out_KDAR_")[1].split("_CCQE")[0]).lower()
+            filename_chunk_temp = file.split(".")[0].split("out_")[1]
+
             filename_chunk_list.append(filename_chunk_temp)
             f2 = ROOT.TFile(file)
             t2 = f2.Get("neuttree")

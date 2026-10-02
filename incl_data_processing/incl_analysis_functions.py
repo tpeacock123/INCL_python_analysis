@@ -2,6 +2,7 @@ import ROOT
 import sys 
 import numpy as np
 import math
+import array
 ROOT.gSystem.Load("libNEUTROOTClass.so")
 ROOT.gSystem.Load("libNEUTOutput.so")
 ROOT.gSystem.Load("libNEUTReWeight.so")
@@ -40,67 +41,61 @@ class intChannel_CC0pi(Enum):
     other = 7
     neutronPion = 8
 
-def create_histo(name, title, color, fill_style, data,n_bins,x_min,x_max, line = False):
+def create_histo(
+    name, title, color, fill_style, data, n_bins, x_min_or_bins, x_max=None, line=False
+):
+    # Detect if variable binning (array/list) or fixed binning (number) is being used
+    if isinstance(x_min_or_bins, (array.array, list, tuple)):
+        h = ROOT.TH1F(name, title, n_bins, x_min_or_bins)
+    else:
+        h = ROOT.TH1F(name, title, n_bins, x_min_or_bins, x_max)
 
-    h = ROOT.TH1F(name, title, n_bins, x_min, x_max)
     for val in data:
         h.Fill(val)
-    
-    h.SetLineColor(color-2)  
+
+    h.SetLineColor(color - 2)
     h.SetLineWidth(2)
     h.SetFillColor(color)
-    h.SetFillStyle(fill_style) 
-    
-    if line:
-        h.SetLineStyle(fill_style) 
+    h.SetFillStyle(fill_style)
 
-    
-    # h.SetStats(0)
+    if line:
+        h.SetLineStyle(fill_style)
+
     return h
 
-import numpy as np
-import numpy as np
 
 class PionProcessing:
     def __init__(self, nvect):
         self.nvect = nvect
-        self.nopart = self.nvect.Npart()  # Stored locally to loop over particles
+        self.nopart = self.nvect.Npart()  
         
-        # 1. Pion variables
         self.pion_count = 0
         self.pion_momenta = 0.0
         self.pion_angles = 0.0
         self.pion_3mom = np.zeros(3)
 
-        # 2. Nucleon variables
         self.initProton = None
         self.nucleon_outgoing_momentum = None
         self.outgoing_nucleon_3mom = np.zeros(3)
 
-        # 3. Lepton variables
         self.lepton_momentum = None
         self.lepton_3mom = np.zeros(3)
         self.cos_theta_l = None
 
-        # 4. Missing kinematics variables
         self.p_miss = None
         self.e_miss = None
 
-        # 5. Global & Invariant Kinematics
         self.Q2 = None
         self.W = None
         self.nu = None
 
-        # 6. Angular correlations
         self.theta_l_pi = None
         self.theta_N_pi = None
 
-        # 7. Single-Transverse Kinematic Variables (STVs)
         self.delta_pT = None
         self.delta_alphaT = None
         self.delta_phiT = None
 
-        # Execute extraction and calculation methods
         self.extract_pion_data()
         self.extract_nucleon_data()
         self.extract_lepton_data()
@@ -261,7 +256,6 @@ class PionProcessing:
             cos_phiT = np.dot(-pT_l, pT_had_vec) / (pT_l_mag * pT_had_mag)
             self.delta_phiT = np.arccos(np.clip(cos_phiT, -1.0, 1.0))
                 
-import numpy as np
 
 
 class CCQEProcessing:
@@ -482,6 +476,7 @@ class nvect_reader:
         #if self.nopart <=5:
         #    self.isnofsi = True 
         #else:
+            
         self.isnofsi = False
         self.istransparent = False
         self.fsiProton = 0.0
@@ -496,19 +491,19 @@ class nvect_reader:
             #self.nocasc_piprocessing = CCQEProcessing(self.nvect)
 
         if self.NC_flag == False:
-            self.lepton_mass = 105.00
+            self.lepton_mass = 105.66
             if self.nubar == True:
                 self.incoming_nucleon = 2112
                 self.outgoing_nucleon = 2212
                 self.incoming_nu = self.neutrino
                 self.outgoing_lep = -(abs(self.neutrino)-1)
-                self.outgoing_mass = 939.565
+                self.outgoing_mass = 939.57
             else:
                 self.incoming_nucleon = 2112
                 self.outgoing_nucleon = 2212
                 self.incoming_nu = self.neutrino
                 self.outgoing_lep = self.neutrino - 1
-                self.outgoing_mass = 938.272
+                self.outgoing_mass = 938.27
 
         else:
             self.lepton_mass = 0.0
@@ -536,7 +531,7 @@ class nvect_reader:
             self.P_miss = self.missing_mom()
         if (self.eventType == EventType.NC_mf or self.eventType == EventType.NC_SRC ):
             self.E_miss = self.missing_E_calc_NC()
-            print(self.E_miss)
+            #print(self.E_miss)
             self.P_miss = self.missing_mom()
 
     def nocasc_pion(self):
@@ -884,7 +879,7 @@ class nvect_reader:
                         continue
 
                 if pinfo.fPID == (2212) or pinfo.fPID == (2112):
-                    if pinfo.fStatus == 7:
+                    if pinfo.fStatus == 7 or (pinfo.fStatus == 0 and (self.nvect.ParentIdx(i)== 0)):
                         proton_mom2 = np.array([-pinfo.fP.X(),-pinfo.fP.Y(), -pinfo.fP.Z()])
 
                         if np.linalg.norm(init_proton_mom - proton_mom2) < 0.1:
@@ -933,7 +928,7 @@ class nvect_reader:
                 E_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2)
             if pinfo.fPID == self.outgoing_nucleon and (self.nvect.ParentIdx(i)==2):
                 T_had = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 938.00**2) - 938.00
-        print(E_nu, E_lep, T_had)
+        #print(E_nu, E_lep, T_had)
         return E_nu - E_lep - T_had
 
     def excitation_E_CCQE(self):
@@ -955,20 +950,24 @@ class nvect_reader:
                 p_had += np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
                 E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
 
-        print(E_nu + 11174.86 - E_lep - E_had)
+        #print(E_nu + 11174.86 - E_lep - E_had)
         E_star = E_nu + 11174.86 - E_lep - E_had
-        p_star = 0 # p_nu - p_lep - p_had
+        p_star =  p_nu - p_lep - p_had
+
 
         if self.NC_flag == True:
             E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) -  10252.61
-            print("HERE")
+            #print("HERE")
             return E   
 
         if self.nubar == True:
             E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - 10252.61
         elif self.nubar == False:
-            E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - 10254.27
+            E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - 10254
 
+        #print(E_star, 10254.27, E )
+        if E < 0:
+            return 0 
         return E   
     
     def excitation_E_SRC(self):
@@ -1001,26 +1000,24 @@ class nvect_reader:
                 elif pinfo.fPID == 2112:
                     E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 939.56**2) 
 
-        print(E_nu, E_lep, E_had)
+        #print(E_nu, E_lep, E_had)
 
         E_star = E_nu + 11174.86 - E_lep - E_had
-        print(E_star)
+        #print(E_star)
         p_star = 0.0 #p_nu - p_lep - p_had
-        print(proton_counter)
+        #print(proton_counter)
         if (proton_counter == 1):
             Nuclear_mass = (5)*938.27 + (5)*939.57  - 64.75
         elif (proton_counter == 2):
             Nuclear_mass = (4)*938.27 + (6)*939.57  - 64.98
         else:
             Nuclear_mass = (6)*938.27 + (4)*939.57  - 60.32
-        print(Nuclear_mass)
+        #print(Nuclear_mass)
 
         E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - Nuclear_mass
-        print(E)
-        print(E)
-        if E < 0.0:
-            print(E)
-
+        #print(E)
+        #print(E)
+        
         return E   
     
     def excitation_E_2p2h(self):
@@ -1062,7 +1059,7 @@ class nvect_reader:
         return E
 
     def missing_energy_2p2h(self):
-        self.Print()
+        #self.Print()
 
         E_nu = 0.0
         E_lep = 0.0 
@@ -1108,7 +1105,7 @@ class nvect_reader:
                         A+= int(remnant[3])
         if A != 12:
             self.Print()
-        print(A,Z)
+       # print(A,Z)
         return 0 
     
     def get_deltaPT(self):
@@ -1131,7 +1128,7 @@ class nvect_reader:
                         proton_momentum = proton_mometum_placeholder
         
         if np.linalg.norm(proton_momentum) == 0:
-            return -999.99
+            return -999.99, -999.99
         else:
             normal_v = neutrino_mometum/np.linalg.norm(neutrino_mometum) 
             proton_momentum_long = np.dot(proton_momentum, normal_v) * normal_v
@@ -1157,7 +1154,9 @@ class nvect_reader:
             pinfo.fP.X()**2 + pinfo.fP.X()**2 +pinfo.fP.Y()**2
             P = (pinfo.fP.X()**2 + pinfo.fP.Y()**2 +pinfo.fP.Z()**2)
             print("energy", np.sqrt(P+pinfo.fMass**2)-pinfo.fMass)
-        
+
+        if pinfo.fStatus == 5: 
+            input(" ")
         print(self.eventType.name)
         if (not (self.eventType == EventType.piProd or self.eventType == EventType.NC_piProd) ):
             print(self.intChannel.name)
@@ -1191,7 +1190,7 @@ class nvect_reader:
             if photonCounter == 0:
                 return intChannel_CCQE.noCascadeFSI
             else:
-                print("here")
+                #print("here")
                 return intChannel_CCQE.noCascadeFSIPhoton
 
         elif (transparentProton == True) and (deex_event == True) and (proton == True):  
@@ -1210,7 +1209,7 @@ class nvect_reader:
             return intChannel_CCQE.protonPion
         else:
             print( p_casc_energy,nuclear_remnant, nucleonCounter, clusterCounter, transparentProton, pion, photonCounter,proton, deex_event)
-            self.Print()
+            #self.Print()
             return intChannel_CCQE.other
 
     def interaction_channel_CC0pi(self):
@@ -1262,17 +1261,210 @@ class nvect_reader:
         energy_list = []
         for i in range(self.nopart):
             pinfo = self.nvect.PartInfo(i)
-            if pinfo.fIsAlive == 1 and pinfo.fStatus == 10:
-                  particle_list.append(pinfo.fPID)
-            P = (pinfo.fP.X()**2 + pinfo.fP.Y()**2 +pinfo.fP.Z()**2)
-            energy_list.append(np.sqrt(P))
+            if pinfo.fIsAlive == 1: #and pinfo.fStatus == 10:
+                #print(pinfo.fPID)
+                
+                # Calculate momentum squared once to keep the code clean
+                p2 = pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2
+
+                if pinfo.fPID == 22:
+                    P = p2**0.5 
+                    particle_list.append(pinfo.fPID)
+                    
+                elif pinfo.fPID == 111:
+                    P = (p2 + 134.98**2)**0.5
+                    particle_list.append(pinfo.fPID)
+                    
+                elif abs(pinfo.fPID) == 211:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 139.57**2)**0.5 - 139.57
+                    
+                elif pinfo.fPID == 2212:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 938.27**2)**0.5 - 938.27
+                    
+                elif pinfo.fPID == 2112:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 939.57**2)**0.5 - 939.57
+                    
+                elif pinfo.fPID == 1000010020:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 1875.61**2)**0.5 - 1875.61
+                    
+                elif pinfo.fPID == 1000010030:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 2808.92**2)**0.5 - 2808.92
+                    
+                elif pinfo.fPID == 1000020040:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 3727.38**2)**0.5 - 3727.38 
+
+                elif pinfo.fPID == 1000020030:
+                    particle_list.append(pinfo.fPID)
+                    P = (p2 + 2808.39**2)**0.5 - 2808.39 
+
+                elif pinfo.fPID == 13:
+                    continue
+                    
+                else:
+                    #print("unkown? ") 
+                    #print(pinfo.fPID)
+                    continue
+                
+                energy_list.append(P)
         
         return particle_list,energy_list
+
+    def E_reco_bias(self, visible = False, neutron = False):
+        E_reco = 0
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            if abs(pinfo.fPID) == 14:
+                print("neutrino", np.sqrt(pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2))
+                neutrino_e = np.sqrt(pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2)
+            if pinfo.fIsAlive == 1: 
+
+                p2 = pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2
+
+                if abs(pinfo.fPID) == 13:
+                    print("lepton", p2**0.5)
+                    E_reco += p2**0.5
+                
+                if pinfo.fPID == 22:
+                    E_reco += p2**0.5 
+                    
+                elif pinfo.fPID == 111:
+                    E_reco += (p2 + 134.98**2)**0.5
+                    
+                elif abs(pinfo.fPID) == 211:
+                    E_reco += (p2 + 139.57**2)**0.5 - 139.57
+                    
+                elif pinfo.fPID == 2212:
+                    E_reco += (p2 + 938.27**2)**0.5 - 938.27
+                    print("proton", (p2 + 938.27**2)**0.5 - 938.27)
+                
+                elif pinfo.fPID == 2112 and visible == True and neutron == True:
+                    E_reco +=(p2 + 939.57**2)**0.5 - 939.57
+                    
+                elif pinfo.fPID == 1000010020 and visible == True:
+                    E_reco +=(p2 + 1875.61**2)**0.5 - 1875.61
+                    
+                elif pinfo.fPID == 1000010030 and visible == True:
+                    E_reco += (p2 + 2808.92**2)**0.5 - 2808.92
+                    
+                elif pinfo.fPID == 1000020040 and visible == True:
+                    E_reco +=(p2 + 3727.38**2)**0.5 - 3727.38 
+
+                elif pinfo.fPID == 1000020030 and visible == True:
+                    E_reco += (p2 + 2808.39**2)**0.5 - 2808.39 
+        print("E_reco", E_reco)
+        return (E_reco - neutrino_e)/neutrino_e
+
+
+
+    def Missing_energy_kdar(self, D2= False):
+        E_nu = 0.0
+        E_lep = 0.0 
+        T_had = []
+        #t_phot = 0.0
+        proton_counter = 0
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+
+            if pinfo.fPID == abs(2212) and (pinfo.fIsAlive == 1):
+                T_had.append(np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 938.272**2) - 938.272)
+                proton_counter += 1
+            if pinfo.fPID == abs(14):
+                E_nu = np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])) 
+            if pinfo.fPID == abs(13):
+                T_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 105.7**2) - 105.7
+            #if pinfo.fPID == abs(22):
+                #T_phot = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2)
+        
+        E_vis = T_lep + sum(T_had) #+ T_phot
+
+        E_miss = 131.2 - E_vis
+
+        if E_vis > 20 and E_vis < 150 and proton_counter != 0:
+            return E_vis, E_miss
+        
+        return None , None
+
+    def Missing_energy_kdar2(self, D2= False):
+        E_nu = 0.0
+        E_lep = 0.0 
+        T_had = []
+        T_INCL = 0.0
+        proton_counter = 0
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+
+            if pinfo.fPID == abs(2212) and (pinfo.fIsAlive == 1):
+                T_had.append(np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 938.272**2) - 938.272)
+                proton_counter += 1
+            if pinfo.fPID == abs(14):
+                E_nu = np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])) 
+            if pinfo.fPID == abs(13):
+                T_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 105.7**2) - 105.7
+            if pinfo.fPID == abs(22) and (pinfo.fIsAlive == 1):
+                T_INCL += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2)
+
+        
+        E_vis = T_lep + sum(T_had) + T_INCL
+
+        E_miss = 131.2 - E_vis
+
+        if E_vis > 20 and E_vis < 150 and proton_counter != 0:
+            return E_vis, E_miss
+        
+        return None , None
+
+    def Neutron_per_muon(self):
+        neutron = False
+        pion = False
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            if pinfo.fIsAlive == 1: 
+                if pinfo.fPID == 13:
+
+                    muon_E = np.sqrt( pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2)
+                    mom = np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                    cos_theta = np.dot(mom, np.array([0, 0, 1])) / np.linalg.norm(mom)
+                if pinfo.fPID == 2112:
+                    neutron = True
+                if abs(pinfo.fPID) == 211 or  abs(pinfo.fPID) == 111:
+                    pion = True 
+
+        if neutron == True and pion == False:
+            return muon_E,cos_theta
+        else:
+            return None,None
+
+    def neutron_multiplicity(self):
+        neutron_count = 0
+        pion = False
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            
+            if pinfo.fPID == 14:
+                muon_E = np.sqrt( pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2)
+            if pinfo.fIsAlive == 1: 
+                if pinfo.fPID == 2112:
+                    neutron_count +=1
+                if abs(pinfo.fPID) == 211 or  abs(pinfo.fPID) == 111:
+                    pion = True 
+
+        if  pion == False:
+            return muon_E, neutron_count
+        else:
+            return None,None
+
 
 
 
 
 def create_ratio(h_in, h_tot):
+    
     h_ratio = h_in.Clone(h_in.GetName() + "_ratio")
     h_ratio.Divide(h_tot) 
 
