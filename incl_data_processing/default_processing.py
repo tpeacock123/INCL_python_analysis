@@ -575,7 +575,7 @@ def INCL_processing(filename):
     pad4.SetTicks(1, 1)
     pad4.Draw()
 
-    n_bins = 90    
+    n_bins = 270    
     x_min = 0
     x_max = 1500   
 

@@ -70,23 +70,37 @@ def deex_multiplicity(filename, name, filename_list=None):
 
     # Fixed: Replaced "#gamma" with "γ" (or "#gamma ") to prevent TLatex scaling bug
     pdg_map = {
-        22: "#gamma",
+       # 22: "#gamma",
         2212: "p",
         2112: "n",
         1000010020: "D",
         1000010030: "T",
         1000020040: "#alpha",
+       # 211: "pi+",
+       # -211: "pi-",
+       # 111:"pi0"
     }
-
-    labels= ["INCL + ABLA", "NEUT Cascade", ]
-    colors = [ROOT.kBlue, ROOT.kAzure]
-    styles = [ 1,1 ]
     
+    labels= ["NEUT Cascade", "INCL + ABLA"]
+    colors = [ROOT.kAzure,ROOT.kBlue]
+    styles = [ 1,1,1 ]
+    
+
+
+    #labels = ["SF", "Nieves LFG"]
+    #colors = [ROOT.kBlue, ROOT.kOrange + 7, ROOT.kMagenta, ROOT.kRed]
+    #styles = [1, 1, 8, 2, 1]
+
     """
-    labels = ["SF", "Nieves LFG"]
-    colors = [ROOT.kBlue, ROOT.kOrange + 7, ROOT.kMagenta, ROOT.kRed]
-    styles = [1, 1, 8, 2, 1]
+    labels = ["NEUT Cascade - NuWro SRC", 
+                   "NEUT Cascade - NEUT SRC", 
+                   "INCL + ABLA  - NuWro SRC",
+                   "INCL + ABLA  - NEUTs SRC",
+                   ]
     """
+   # colors = [ ROOT.kRed, ROOT.kBlue, ROOT.kRed, ROOT.kBlue ]
+    #styles = [4,4,1,1]
+
 
     histograms_1d = []
     canvases_2d = []
@@ -179,14 +193,39 @@ def deex_multiplicity(filename, name, filename_list=None):
         out_file.Close()
         return
 
-    canvas_mult = ROOT.TCanvas("c_multiplicity_summary", "Particle Multiplicity Comparison", 650, 600)
+    canvas_mult = ROOT.TCanvas("c_multiplicity_summary", "Particle Multiplicity Comparison", 600, 700)
     canvas_mult.SetGridy()
+    
+    canvas_mult = ROOT.TCanvas("c_multiplicity_summary", "Particle Multiplicity Comparison", 650, 600)
+    canvas_mult .SetGrayscale(False)
+    canvas_mult .SetLeftMargin(0.12)   # Default is ~0.12
+    canvas_mult .SetRightMargin(0.08)  # Default is ~0.10
+    canvas_mult .SetTopMargin(0.06)    # Default is ~0.10
+    canvas_mult .SetBottomMargin(0.12) # Default is ~0.12
+
+
+    """
+    pad = ROOT.TPad("pad1", "pad1", 0.0, 0.0, 1.0, 0.90)
+    pad.SetLeftMargin(0.12)
+    pad.SetRightMargin(0.08)
+    pad.SetTopMargin(0.06)  # Top margin matching pad1
+    pad.SetBottomMargin(0.10)  # Bottom margin keeping X-axis title above Y = 0.15
+    pad.SetTickx(1)
+    pad.SetTicky(1)
+    pad.Draw()
+    pad.cd()
+    """
+
+    """
     canvas_mult.SetLeftMargin(0.12)
     canvas_mult.SetRightMargin(0.08)
     canvas_mult.SetTopMargin(0.06)
     canvas_mult.SetBottomMargin(0.12)
+    """
+    
+    legend = ROOT.TLegend(0.47, 0.77, 0.9, 0.9)
+    #legend = ROOT.TLegend(0.45, 0.62, 0.8, 0.82)
 
-    legend = ROOT.TLegend(0.52, 0.77, 0.9, 0.9)
     legend.SetNColumns(1) 
     legend.SetTextFont(latex_font) 
     legend.SetBorderSize(0) 
@@ -194,7 +233,7 @@ def deex_multiplicity(filename, name, filename_list=None):
     legend.SetFillColor(ROOT.kWhite)
     legend.SetTextSize(0.03) 
 
-    canvas_mult.cd()
+    #canvas_mult.cd()
     for idx, (fname_chunk, h_mult) in enumerate(histograms_1d):
         if idx == 0:
             h_mult.SetMaximum(2.0)
@@ -209,10 +248,24 @@ def deex_multiplicity(filename, name, filename_list=None):
         legend.AddEntry(h_mult, label_text, "l")
 
     legend.Draw()
+
+    output_dir = "deex_multiplicity"
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_pdf = os.path.join(output_dir, f"multiplicity_{name[0]}_deex.pdf")
+
+
+
+   # canvas_mult.pad = pad
+   # pad.Update()
+
+    canvas_mult.cd()
+    canvas_mult.Update()
     canvas_mult.Update()
 
-    canvas_mult.Print(f"multiplicity_{name}_deex.pdf")
+    canvas_mult.Print(output_pdf)
 
+  
     out_file.cd()
     canvas_mult.Write()
 

@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
 
+import ROOT
+import numpy as np
+
 current_dir = Path(__file__).resolve().parent
 subfolder_dir = str(current_dir / "incl_data_processing")
 if subfolder_dir not in sys.path:
@@ -12,6 +15,7 @@ from kdar_processing import *
 from paper_plots import *
 from deex_functions import *
 from nocasc_pi_ana import *
+from excitation_plots import *
 import numpy as np
 from array import array
 import sys 
@@ -22,11 +26,11 @@ ROOT.gSystem.Load("libNEUTOutput.so")
 ROOT.gSystem.Load("libNEUTReWeight.so")
 ROOT.TH1.AddDirectory(False)
 
-import ROOT
-import numpy as np
 
 
-def reader(filename):
+def reader(filename, evts=5000000):
+
+    print(evts)
     
     filename_chunk = filename.split(".")[0].split("out_")[1]
 
@@ -34,12 +38,16 @@ def reader(filename):
     t = f.Get("neuttree")   
     channel = []
 
-    for event in t:
+    for i,event in enumerate(t):
+        if i == evts:
+            break
         
         nvect = event.vectorbranch
         nvect_class = nvect_reader(nvect)
         
         string_val = nvect_class.Print() 
+        print(nvect_class.excitation_E_pion())
+        print(nvect_class.particles())
         channel.append(string_val)
 
     file = ROOT.TFile("channel_{}.root".format(filename_chunk),"RECREATE")
@@ -239,11 +247,14 @@ def main():
     parser.add_argument('-i', '--input', nargs='+', help="Input file(s). You can put more than one in to process more than 1 files to get different outputs.")
     parser.add_argument("-a", "--additional_file",  nargs='+', help=" additional file/s. For some options (additional files, spectral_function2d,SRC_plot, CCQE_combined plot)")
     parser.add_argument("-n", "--name",nargs='+', help=" filrname. e options (additional files, spectral_function2d,SRC_plot, CCQE_combined plot)")
+    parser.add_argument("-e", "--no_events",type=int, help=" filrname. e options (additional files, spectral_function2d,SRC_plot, CCQE_combined plot)")
     args = parser.parse_args()
 
     input_files = args.input if args.input else []
     additional_files = args.additional_file if args.input else []
     name = args.name if args.name else ""
+    n_events = args.no_events if args.no_events else ""
+    print(n_events)
 
     for file in input_files:
         print(f"Logic: Input file queued: '{file}'")
@@ -255,7 +266,7 @@ def main():
         function_to_run = args.type
         if function_to_run == "reader":
             for file in input_files:
-                reader(file)
+                reader(file,evts = n_events)
 
         elif function_to_run == "kdar":
             for file in input_files:
@@ -268,16 +279,30 @@ def main():
         elif function_to_run == "spectral_function":
             for file in input_files:
                 for add_file in additional_files:
-                    spectral_function2d(file, add_file)
+                    spectral_function2d(file, additional_files, name = "specfunc")
         
         elif function_to_run == "src":
             for file in input_files:
                 for add_file in additional_files:
                     SRC_plot(file, add_file)
 
+        elif function_to_run == "channel_migration":
+             for filename in input_files:
+                channel_migration(filename, name)
+
+
+
         elif function_to_run == "processing":
             for file in input_files:
                 INCL_processing(file)
+
+        elif function_to_run == "excitation_E_plots":
+            for filename in input_files:
+                excitation_plots(filename, name)
+
+        elif function_to_run == "proton_mom_breakdown":
+            for file in input_files:
+                proton_momentum_plots(file, name, additional_files)
 
         elif function_to_run == "2p2h":
             for file in input_files:
@@ -289,7 +314,11 @@ def main():
 
         elif function_to_run == "CCQE_comps":
             for file in input_files:
-                ccqe_combined_plots(file,name,additional_files)
+                ccqe_combined_plots(file,name, n_events,additional_files)
+
+        elif function_to_run == "piprod_comps":
+            for file in input_files:
+                pion_combined_plots(file,name,additional_files)
 
         elif function_to_run == "mono_CCQE_comps":
             monoenergetic_CCQE_combined_plots()
@@ -313,6 +342,9 @@ def main():
             for file in input_files:
                 ccqe_stacked_plots(file,additional_files)
 
+        elif function_to_run == "total_momentum":
+            ccqe_momentum_plots_side_by_side(file, name, additional_files)
+
         elif function_to_run == "E_reco":
             for file in input_files:
                 e_reco_bias_combined_plots(file, name, additional_files)
@@ -329,6 +361,9 @@ def main():
             for file in input_files:
                 neutrons_per_neutrino_E(file,name,additional_files)
 
+        elif function_to_run == "total_mom_breakdown":
+            for file in input_files:
+                ccqe_individual_particle_momentum_plots(file, name, additional_files)
               
 
         else:

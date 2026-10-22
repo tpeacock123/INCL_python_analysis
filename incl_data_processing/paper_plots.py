@@ -44,83 +44,78 @@ ROOT.TColor.SetGrayscale(False)
 ROOT.gROOT.SetBatch(True)
 
 
+def spectral_function2d(filename, additional_files, name):
 
-def spectral_function2d(filename,additional_filename):
-
-
+    additional_filename = additional_files[0]
+    third_filename = additional_files[1]
     ROOT.gStyle.SetOptStat(0)
 
-
     filename_chunk = filename.split(".")[0].split("out_")[1]
+
+    # File 1
     f = ROOT.TFile(filename)
-    t = f.Get("neuttree")   
-
-    h_miss = ROOT.TH2D("h_miss", "; P_{N} [MeV/c]; E_{RMV} [MeV/c]", 150, 0, 450, 80, 0, 80)
-
+    t = f.Get("neuttree")
+    h_miss = ROOT.TH2D(
+        "h_miss", "; P_{N} [MeV/c]; E_{RMV} [MeV/c]", 150, 0, 450, 80, 0, 80
+    )
     for event in t:
-        nvect = event.vectorbranch
-        nvect_class = nvect_reader(nvect)
-        eMiss = nvect_class.E_miss
-        pMiss = nvect_class.P_miss
-        h_miss.Fill(pMiss, eMiss)
+        nvect_class = nvect_reader(event.vectorbranch)
+        h_miss.Fill(nvect_class.P_miss, nvect_class.E_miss)
 
-
-
+    # File 2
     f2 = ROOT.TFile(additional_filename)
-    t2 = f2.Get("neuttree")  
-
-
-    h2_miss = ROOT.TH2D("h2_miss", "; P_{N} [MeV/c]; E_{RMV} [MeV/c]", 150, 0, 450, 80, 0, 80)
-
+    t2 = f2.Get("neuttree")
+    h2_miss = ROOT.TH2D(
+        "h2_miss", "; P_{N} [MeV/c]; E_{RMV} [MeV/c]", 150, 0, 450, 80, 0, 80
+    )
     for event in t2:
-        nvect = event.vectorbranch
-        nvect_class = nvect_reader(nvect)
-        eMiss = nvect_class.E_miss
-        pMiss = nvect_class.P_miss
-        h2_miss.Fill(pMiss, eMiss)
+        nvect_class = nvect_reader(event.vectorbranch)
+        h2_miss.Fill(nvect_class.P_miss, nvect_class.E_miss)
 
+    # File 3
+    f3 = ROOT.TFile(third_filename)
+    t3 = f3.Get("neuttree")
+    h3_miss = ROOT.TH2D(
+        "h3_miss", "; P_{N} [MeV/c]; E_{RMV} [MeV/c]", 150, 0, 450, 80, 0, 80
+    )
+    for event in t3:
+        nvect_class = nvect_reader(event.vectorbranch)
+        h3_miss.Fill(nvect_class.P_miss, nvect_class.E_miss)
 
+    # Scale max and min across all three histograms
+    global_max = max(
+        h_miss.GetMaximum(), h2_miss.GetMaximum(), h3_miss.GetMaximum()
+    )
 
-    global_max = max(h_miss.GetMaximum(), h2_miss.GetMaximum())
-
-    h_miss.SetMaximum(global_max)
-    h2_miss.SetMaximum(global_max)
-
-    h_miss.SetMinimum(0.00001)
-    h2_miss.SetMinimum(0.00001)
-
-
+    for h in (h_miss, h2_miss, h3_miss):
+        h.SetMaximum(global_max)
+        h.SetMinimum(0.00001)
 
     ROOT.gStyle.SetPalette(ROOT.kBlueRedYellow)
     ROOT.gStyle.SetNumberContours(99)
 
-
-    c1 = ROOT.TCanvas("c1", "c1", 1600, 700) 
-    c1.Divide(2, 1)
+    # Expanded canvas width from 1600 to 2400 to accommodate 3 pads
+    c1 = ROOT.TCanvas("c1", "c1", 2400, 700)
+    c1.Divide(3, 1)
 
     def format_axes(hist):
         for axis in [hist.GetXaxis(), hist.GetYaxis()]:
             axis.SetLabelColor(ROOT.kBlack)
             axis.SetTitleColor(ROOT.kBlack)
-            axis.SetAxisColor(ROOT.kWhite) 
+            axis.SetAxisColor(ROOT.kWhite)
 
-
-    pad1 = c1.cd(1)
-    pad1.SetFillColor(ROOT.kWhite) 
-    pad1.SetFrameFillColor(ROOT.kBlack)
-    pad1.SetRightMargin(0.15) 
-    format_axes(h_miss)
-    h_miss.Draw()
-
-    pad2 = c1.cd(2)
-    pad2.SetFillColor(ROOT.kWhite) 
-    pad2.SetFrameFillColor(ROOT.kBlack)
-    pad2.SetRightMargin(0.15) 
-    format_axes(h2_miss)
-    h2_miss.Draw() 
+    # Draw pads
+    for i, h in enumerate([h_miss, h2_miss, h3_miss], start=1):
+        pad = c1.cd(i)
+        pad.SetFillColor(ROOT.kWhite)
+        pad.SetFrameFillColor(ROOT.kBlack)
+        pad.SetRightMargin(0.15)
+        format_axes(h)
+        h.Draw()
 
     c1.Update()
-    c1.SaveAs("spectral_function_{}.root".format(filename_chunk))
+    c1.SaveAs("spectral_function_{}.pdf".format(name))
+
 
 def SRC_plot(filename,additional_filename):
     ROOT.gStyle.SetOptStat(0)
@@ -353,7 +348,1231 @@ def transparency(filename, filename_list=[]):
     out_file.Close()
 
 
-def ccqe_combined_plots(filename, name, filename_list=None):
+def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
+    if filename_list is None:
+        filename_list = []
+        
+    files_to_process = [filename] + filename_list
+
+    print("no events", no_events)
+    
+    # Original lists
+    hist_list_proton = []
+    hist_list_ex = []
+    hist_list_avail = []
+    hist_list_nop_avail = []
+    hist_list_non_incl_avail = [] 
+    
+    # KDAR Missing Energy
+    #hist_list_missing_kdar = []
+
+    # Transverse Kinematics
+    hist_list_dpt = []
+    hist_list_dat = []
+
+    # Invisible & Total Energy Lists
+    hist_list_invisible = []
+    hist_list_total_e = []  # ADDED: Total energy list
+    
+    # Momentum lists
+    hist_list_momp_casc = [] 
+    hist_list_momp_deex = [] 
+    hist_list_momgamma = []
+    hist_list_momn_casc = [] 
+    hist_list_momn_deex = [] 
+    hist_list_momd = []
+    hist_list_momt = []
+    hist_list_momhe3 = []
+    hist_list_moma = []
+    hist_list_mompi0 = []
+    hist_list_mompipm = []
+
+    # Multiplicity lists
+    hist_list_mult_p = []
+    hist_list_mult_gamma = []
+    hist_list_mult_n = []
+    hist_list_mult_d = []
+    hist_list_mult_t = []
+    hist_list_mult_he3 = []
+    hist_list_mult_a = []
+    hist_list_mult_pi0 = []
+    hist_list_mult_pipm = []
+
+    """
+        styles = [
+            (ROOT.kBlack, 1),      # Dashed Red
+            (ROOT.kBlue, 9),     # Dash-Dot Blue
+            (ROOT.kRed, 9),     # Dash-Dot Blue
+            (ROOT.kGreen+2, 5),
+            (ROOT.kOrange-3,9), # Nieves Color 
+            (ROOT.kBlue, 9),     #
+    # Long-Dash Green
+            (ROOT.kBlue, 9),     # Dash-Dot Blue
+            (ROOT.kRed, 9),     # Dash-Dot Blue
+            (ROOT.kMagenta, 2),  # Short-Dash Magenta
+            (ROOT.kCyan, 1)      # Solid Cyan (fallback)
+        ]
+    """
+    #legend_name = ["No Subprimary Nucleon", "NEUT SRC Definition", "NuWro SRC Definition"]#
+    #legend_name = ["No Kinematic Threshold", "14 MeV Threshold", "28 MeV Threshold", "NEUT SRC"]
+    #legend_name = ["sf*", "LFG", "sf"]
+    #legend_name = ["sf*", "LFG"]
+    #legend_name = ["SF","Nieves LFG"] 
+
+
+    legend_name = ["SF*", 
+                   "ED_RMF", 
+                   "Nieves LFG"
+                   ]
+    styles = [
+                (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
+                (ROOT.kRed,1), 
+                (ROOT.kOrange+7, 1), 
+            ]
+
+
+    """
+    legend_name = ["NEUT Cascade - NuWro SRC", 
+                   "NEUT Cascade - Box SRC", 
+                   "INCL + ABLA  - NuWro SRC",
+                   "INCL + ABLA  - Box SRC",
+                   ]
+    styles = [
+                (ROOT.kRed, 4),  # Uses index 2 (modified to Petroff Blue)
+                (ROOT.kBlue, 4),
+                (ROOT.kRed, 1),  
+                (ROOT.kBlue, 1),
+            ]
+    """
+
+    """
+    legend_name = ["NEUT Cascade", "INCL + ABLA"
+                
+                ]
+    styles = [(ROOT.kAzure,1),
+                (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
+
+                #(ROOT.kBlue, 4),  # Modified to Petroff Grape
+                #(ROOT.kOrange + 7, 1),  # Modified to Petroff Red
+                #(ROOT.kOrange + 7, 4),  # Modified to Petroff Yellow
+            ]
+    """
+    """
+    legend_name = ["No SRC Contribution", 
+                   "NEUT SRC",
+                   "NuWro SRC, no Kin. Cut",
+                   "NuWro SRC, 14 MeV Kin. Cut", 
+                   "NuWro SRC, iso Kin. Cut", 
+                ]
+    styles = [
+                
+                (ROOT.kAzure,1),
+                (ROOT.kBlue, 1), 
+                (ROOT.kOrange+7,1),
+                (ROOT.kRed,1), 
+                (ROOT.kMagenta,1), 
+            ]
+    """
+
+    """
+    legend_name = ["INCL + ABLA",
+                   "NEUT Cascade",
+                   "No Cascade"
+                ]
+
+    styles = [
+                
+                (ROOT.kAzure,1),
+                (ROOT.kBlue, 1), 
+                (ROOT.kOrange+7,1),
+            ]
+    """
+    """
+    legend_name = ["SF*", 
+                   "SF",
+                   "Nieves LFG", 
+                   ]
+    styles = [
+                (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
+                (ROOT.kRed,1),
+                #(ROOT.kBlue, 4),  # Modified to Petroff Grape
+                (ROOT.kOrange + 7, 1)  # Modified to Petroff Red
+    ]
+    """
+
+    count = 0 
+    
+    for fname in files_to_process:
+        print("processing file {}".format(fname))
+        filename_chunk = legend_name[count]
+        count += 1
+        
+        f = ROOT.TFile(fname)
+        t = f.Get("neuttree")   
+
+        h_leadin = ROOT.TH1D(f"h_leading_{filename_chunk}", "Leading Proton Distribution", 50, 0.0, 1500)
+        h_leadin.Sumw2()
+        h_leadin.SetTitle(";P_{N} [MeV/c];#frac{1}{N} #frac{dN}{30 MeV/c}")
+
+        h_ex = ROOT.TH1D(f"h_excitation_E_{filename_chunk}", "Excitation Energy Distribution", 53, -2.5, 50.5)
+        h_ex.Sumw2()
+        h_ex.SetTitle(";E_{x} [MeV];#frac{1}{N} #frac{dN}{2 MeV}")
+
+        h_eavail = ROOT.TH1D(f"h_avail_E_{filename_chunk}", "Hadronic Available Energy Distribution", 40, 0.0, 400)
+        h_eavail.Sumw2()
+        h_eavail.SetTitle(";E_{Had} [MeV];#frac{1}{N} #frac{dN}{10 MeV}")
+
+        h_notpeavail = ROOT.TH1D(f"h_avail_E_noP_{filename_chunk}", "Hadronic Available Energy Distribution (no p)", 100, 0.0, 1000)
+        h_notpeavail.Sumw2()
+        h_notpeavail.SetTitle(";(E_{Had} - T_{p}) [MeV];#frac{1}{N} #frac{dN}{10 MeV}")
+
+        h_non_incl_avail = ROOT.TH1D(f"h_avail_E_nonINCL_{filename_chunk}", "Non-INCL Available Energy Distribution", 100, 0.0, 1000)
+        h_non_incl_avail.Sumw2()
+        h_non_incl_avail.SetTitle(";E_{Non-INCL} [MeV];#frac{1}{N} #frac{dN}{10 MeV}")
+
+        # Invisible Energy Histogram
+        h_invisible = ROOT.TH1D(f"h_invisible_E_{filename_chunk}", "Invisible Energy Distribution", 40, 0.0, 400)
+        h_invisible.Sumw2()
+        h_invisible.SetTitle(";E_{Inv} [MeV];#frac{1}{N} #frac{dN}{10 MeV}")
+
+        # Total Energy Histogram
+        h_total_e = ROOT.TH1D(f"h_tot_E_{filename_chunk}", "Total Energy Distribution", 50, 0.0, 1000)
+        h_total_e.Sumw2()
+        h_total_e.SetTitle(";E_{Total} [MeV];#frac{1}{N} #frac{dN}{20 MeV}")
+
+        h_dpt = ROOT.TH1D(f"h_dpt_{filename_chunk}", "#delta p_{T} Distribution", 50, 0.0, 1000.0)
+        h_dpt.Sumw2()
+        h_dpt.SetTitle(";#delta p_{T} [MeV/c];#frac{1}{N} #frac{dN}{20 MeV/c}")
+
+        h_dat = ROOT.TH1D(f"h_dat_{filename_chunk}", "#delta #alpha_{T} Distribution", 36, 0.0, 180.0)
+        h_dat.Sumw2()
+        h_dat.SetTitle(";#delta#alpha_{T} [deg];#frac{1}{N} #frac{dN}{5 deg}")
+
+        # --- Momentum histograms ---
+        h_momp_casc = ROOT.TH1D(f"h_momp_casc_{filename_chunk}", "Proton Momentum Distribution1", 50, 0.0, 1000)
+        h_momp_casc.Sumw2()
+        h_momp_casc.SetTitle(";p_{p_{all}} [MeV/c];#frac{1}{N} #frac{dN}{20 MeV/c}")
+
+        h_momp_deex = ROOT.TH1D(f"h_momp_deex_{filename_chunk}", "Proton Momentum Distribution2", 50, 0.0, 1000)
+        h_momp_deex.Sumw2()
+        h_momp_deex.SetTitle(";p_{p_{all}} [MeV/c];#frac{1}{N} #frac{dN}{20 MeV/c}")
+
+        
+        h_momgamma = ROOT.TH1D(f"h_momgamma_{filename_chunk}", "Total Photon Momentum Distribution", 100, 0.0, 30)
+        h_momgamma.Sumw2()
+        h_momgamma.SetTitle(";P_{#gamma}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{0.3 MeV/c}")
+
+        h_momn_casc = ROOT.TH1D(f"h_momn_casc_{filename_chunk}", "Neutron Momentum Distribution1", 50, 0.0, 1000)
+        h_momn_casc.Sumw2()
+        h_momn_casc.SetTitle(";p_{n_{all}} [MeV/c];#frac{1}{N} #frac{dN}{20 MeV/c}")
+
+        h_momn_deex = ROOT.TH1D(f"h_momn_deex_{filename_chunk}", "Neutron Momentum Distribution2", 50, 0.0, 1000)
+        h_momn_deex.Sumw2()
+        h_momn_deex.SetTitle(";p_{n_{all}} [MeV/c];#frac{1}{N} #frac{dN}{20 MeV/c}")
+
+        h_momd = ROOT.TH1D(f"h_momd_{filename_chunk}", "Total Deuteron Momentum Distribution", 100, 0.0, 800)
+        h_momd.Sumw2()
+        h_momd.SetTitle(";P_{d}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{8 MeV/c}")
+
+        h_momt = ROOT.TH1D(f"h_momt_{filename_chunk}", "Total Triton Momentum Distribution", 100, 0.0, 800)
+        h_momt.Sumw2()
+        h_momt.SetTitle(";P_{t}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{8 MeV/c}")
+
+        h_momhe3 = ROOT.TH1D(f"h_momhe3_{filename_chunk}", "Total Helium-3 Momentum Distribution", 100, 0.0, 800)
+        h_momhe3.Sumw2()
+        h_momhe3.SetTitle(";P_{^{3}He}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{8 MeV/c}")
+
+        h_moma = ROOT.TH1D(f"h_moma_{filename_chunk}", "Total Alpha Momentum Distribution", 100, 0.0, 1000)
+        h_moma.Sumw2()
+        h_moma.SetTitle(";P_{#alpha}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{10 MeV/c}")
+        
+        h_mompi0 = ROOT.TH1D(f"h_mompi0_{filename_chunk}", "Total #pi^{0} Momentum Distribution", 100, 0.0, 500)
+        h_mompi0.Sumw2()
+        h_mompi0.SetTitle(";P_{#pi^{0}}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{5 MeV/c}")
+        
+        h_mompipm = ROOT.TH1D(f"h_mompipm_{filename_chunk}", "Total #pi^{#pm} Momentum Distribution", 100, 0.0, 500)
+        h_mompipm.Sumw2()
+        h_mompipm.SetTitle(";P_{#pi^{#pm}}^{Total} [MeV/c];#frac{1}{N} #frac{dN}{5 MeV/c}")
+
+        # --- Multiplicity histograms ---
+        h_mult_p = ROOT.TH1D(f"h_mult_p_{filename_chunk}", "Proton Multiplicity", 15, 0.0, 15)
+        h_mult_p.Sumw2()
+        h_mult_p.SetTitle(";N_{p};#frac{N_{events}}{N_{total}}")
+
+        h_mult_gamma = ROOT.TH1D(f"h_mult_gamma_{filename_chunk}", "Photon Multiplicity", 20, 0.0, 20)
+        h_mult_gamma.Sumw2()
+        h_mult_gamma.SetTitle(";N_{#gamma};#frac{N_{events}}{N_{total}}")
+
+        h_mult_n = ROOT.TH1D(f"h_mult_n_{filename_chunk}", "Neutron Multiplicity", 15, 0.0, 15)
+        h_mult_n.Sumw2()
+        h_mult_n.SetTitle(";N_{n};#frac{N_{events}}{N_{total}}")
+
+        h_mult_d = ROOT.TH1D(f"h_mult_d_{filename_chunk}", "Deuteron Multiplicity", 10, 0.0, 10)
+        h_mult_d.Sumw2()
+        h_mult_d.SetTitle(";N_{d};#frac{N_{events}}{N_{total}}")
+
+        h_mult_t = ROOT.TH1D(f"h_mult_t_{filename_chunk}", "Triton Multiplicity", 10, 0.0, 10)
+        h_mult_t.Sumw2()
+        h_mult_t.SetTitle(";N_{t};#frac{N_{events}}{N_{total}}")
+
+        h_mult_he3 = ROOT.TH1D(f"h_mult_he3_{filename_chunk}", "Helium-3 Multiplicity", 10, 0.0, 10)
+        h_mult_he3.Sumw2()
+        h_mult_he3.SetTitle(";N_{^{3}He};#frac{N_{events}}{N_{total}}")
+
+        h_mult_a = ROOT.TH1D(f"h_mult_a_{filename_chunk}", "Alpha Multiplicity", 10, 0.0, 10)
+        h_mult_a.Sumw2()
+        h_mult_a.SetTitle(";N_{#alpha};#frac{N_{events}}{N_{total}}")
+
+        h_mult_pi0 = ROOT.TH1D(f"h_mult_pi0_{filename_chunk}", "#pi^{0} Multiplicity", 10, 0.0, 10)
+        h_mult_pi0.Sumw2()
+        h_mult_pi0.SetTitle(";N_{#pi^{0}};#frac{N_{events}}{N_{total}}")
+
+        h_mult_pipm = ROOT.TH1D(f"h_mult_pipm_{filename_chunk}", "#pi^{#pm} Multiplicity", 10, 0.0, 10)
+        h_mult_pipm.Sumw2()
+        h_mult_pipm.SetTitle(";N_{#pi^{#pm}};#frac{N_{events}}{N_{total}}")
+
+        event_no = 0
+        for event in t:
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect) 
+            event_no +=1
+            if event_no % 100000 == 0:
+                print("event number ", event_no)
+            if event_no == no_events:
+                break
+            
+            if nvect_class.eventType == EventType.SRC or nvect_class.eventType == EventType.MF: 
+               
+                dpt, dat = nvect_class.get_deltaPT()
+                
+                h_dpt.Fill(dpt)
+                h_dat.Fill(dat)
+
+                if nvect_class.intChannel == intChannel_CCQE.other:
+                    print(nvect_class.eventType.name)
+
+                if nvect_class.eventType == EventType.MF:
+                    if nvect_class.excitation_E_CCQE() < 0.0:
+                        h_ex.Fill(0.0)
+                    else:
+                        h_ex.Fill(nvect_class.excitation_E_CCQE())
+                elif nvect_class.eventType == EventType.SRC:
+                    if nvect_class.excitation_E_SRC() < 0.0:
+                        h_ex.Fill(0.0)
+                    else:
+                        h_ex.Fill(nvect_class.excitation_E_SRC())
+
+               # Missing_energy_kdar, E_Miss = nvect_class.Missing_energy_kdar2()
+               # if Missing_energy_kdar:
+               #     h_missing_kdar.Fill(E_Miss)
+
+                particles, energies, flags = nvect_class.particles(flag=True)
+
+                eavail = 0
+                for particle, energy in zip(particles, energies):
+                    if particle == 2112 and particle == 13:
+                        continue
+                    eavail += energy
+
+                h_eavail.Fill(eavail) 
+
+                # Counters for per-event totals
+                non_proton_evail = 0
+                non_INCL_eavail = 0 
+                invisible_energy = 0
+                total_E = 0  # ADDED: Initialized per event
+                
+                total_proton_cascade_mom = []
+                total_proton_deex_mom = []
+                total_gamma_mom = 0
+                total_neutron_casc_mom = []
+                total_neutron_deex_mom = []
+                total_deuteron_mom = 0
+                total_triton_mom = 0
+                total_he3_mom = 0
+                total_alpha_mom = 0
+                total_pi0_mom = 0
+                total_pipm_mom = 0
+
+                mult_p = 0
+                mult_gamma = 0
+                mult_n = 0
+                mult_d = 0
+                mult_t = 0
+                mult_he3 = 0
+                mult_a = 0
+                mult_pi0 = 0
+                mult_pipm = 0
+                
+                for particle, energy,flag in zip(particles, energies,flags):
+                    total_E += energy
+                    if particle != 2212 and particle != 2112:
+                        non_proton_evail += energy
+
+                    if (particle < 1000000 and particle > 20) and particle != 2112:
+                        #print(particle, energy)
+                        non_INCL_eavail += energy
+
+                    if particle != 2212 and abs(particle) != 211:
+                        invisible_energy += energy
+                    
+                    # Convert Kinetic Energy to Momentum (MeV/c)
+                    if particle == 2212: # Proton
+                        
+                        if flag == 8:
+                            total_proton_cascade_mom.append(np.sqrt((energy+938.27)**2 - 938.27**2))
+                        elif flag == 10:
+                            total_proton_deex_mom.append(np.sqrt((energy+938.27)**2 - 938.27**2))
+                        #total_proton_mom += energy
+                        mult_p += 1
+                    elif particle == 22: # Gamma
+                        total_gamma_mom += energy # p = E for photon
+                        mult_gamma += 1
+
+                    elif particle == 2112: # Neutron
+                        
+                        if flag == 8:
+                            total_neutron_casc_mom.append(np.sqrt((energy+939.57)**2 - 939.57**2))
+                        elif flag == 10:
+                            total_neutron_deex_mom.append(np.sqrt((energy+939.57)**2 - 939.57**2))
+                        mult_n += 1
+                    elif particle == 1000010020: # Deuteron
+                        if flag == 10:
+                            total_deuteron_mom += np.sqrt((energy+1875.61)**2 - 1875.61**2)
+                        mult_d += 1
+                    elif particle == 1000010030: # Triton
+                        if flag == 10:
+                            total_triton_mom += np.sqrt((energy+2808.92)**2 - 2808.92**2)
+                        mult_t += 1
+                    elif particle == 1000020030: # Helium-3
+                        if flag == 10:
+                            total_he3_mom += np.sqrt((energy+2808.39)**2 - 2808.39**2)
+                        mult_he3 += 1
+                    elif particle == 1000020040: # Alpha
+                        if flag == 10:
+                            total_alpha_mom += np.sqrt((energy+3727.38)**2 - 3727.38**2) 
+                        mult_a += 1
+                    elif particle == 111: # Pi0
+                        total_pi0_mom += np.sqrt((energy+134.98)**2 - 134.98**2)
+                        mult_pi0 += 1
+                    elif abs(particle) == 211: # Pi+-
+                        total_pipm_mom += np.sqrt((energy+139.57)**2 - 139.57**2)
+                        mult_pipm += 1
+                
+                # Fill energy histograms (skipping zeros)
+                if non_proton_evail > 0: h_notpeavail.Fill(non_proton_evail)
+                if non_INCL_eavail > 0: h_non_incl_avail.Fill(non_INCL_eavail)
+                if invisible_energy > 0: h_invisible.Fill(invisible_energy)
+                if total_E > 0: h_total_e.Fill(total_E)  # ADDED: Fill total energy
+
+                # Fill momentum histograms
+                if len(total_proton_cascade_mom) > 0: 
+                    for proton in total_proton_cascade_mom:
+                        h_momp_casc.Fill(proton)
+
+                if len(total_proton_deex_mom) > 0: 
+                    for proton in total_proton_deex_mom:
+                        h_momp_deex.Fill(proton)
+
+                if len(total_neutron_casc_mom) > 0: 
+                    for neutron in total_neutron_casc_mom:
+                        h_momn_casc.Fill(neutron)
+
+                if len(total_neutron_deex_mom) > 0: 
+                    for neutron in total_neutron_deex_mom:
+                        h_momn_deex.Fill(neutron)
+
+                if total_gamma_mom > 0: h_momgamma.Fill(total_gamma_mom)
+
+                if total_deuteron_mom > 0: h_momd.Fill(total_deuteron_mom)
+                if total_triton_mom > 0: h_momt.Fill(total_triton_mom)
+                if total_he3_mom > 0: h_momhe3.Fill(total_he3_mom)
+                if total_alpha_mom > 0: h_moma.Fill(total_alpha_mom)
+                if total_pi0_mom > 0: h_mompi0.Fill(total_pi0_mom)
+                if total_pipm_mom > 0: h_mompipm.Fill(total_pipm_mom)
+
+                # Fill multiplicity histograms
+                h_mult_p.Fill(mult_p)
+                h_mult_gamma.Fill(mult_gamma)
+                h_mult_n.Fill(mult_n)
+                h_mult_d.Fill(mult_d)
+                h_mult_t.Fill(mult_t)
+                h_mult_he3.Fill(mult_he3)
+                h_mult_a.Fill(mult_a)
+                h_mult_pi0.Fill(mult_pi0)
+                h_mult_pipm.Fill(mult_pipm)
+
+                if nvect_class.HMPMom:
+                    h_leadin.Fill(nvect_class.HMPMom)
+
+        # Set directories
+        h_leadin.SetDirectory(0) 
+        h_ex.SetDirectory(0) 
+        h_eavail.SetDirectory(0) 
+        h_notpeavail.SetDirectory(0) 
+        h_non_incl_avail.SetDirectory(0)
+        h_invisible.SetDirectory(0)
+        h_total_e.SetDirectory(0)  # ADDED: Detach from file directory
+       # h_missing_kdar.SetDirectory(0)
+
+        h_dpt.SetDirectory(0)
+        h_dat.SetDirectory(0)
+        
+        h_momp_casc.SetDirectory(0)
+        h_momp_deex.SetDirectory(0)
+        h_momgamma.SetDirectory(0)
+        h_momn_casc.SetDirectory(0)
+        h_momn_deex.SetDirectory(0)
+        h_momd.SetDirectory(0)
+        h_momt.SetDirectory(0)
+        h_momhe3.SetDirectory(0)
+        h_moma.SetDirectory(0)
+        h_mompi0.SetDirectory(0)
+        h_mompipm.SetDirectory(0)
+
+        h_mult_p.SetDirectory(0)
+        h_mult_gamma.SetDirectory(0)
+        h_mult_n.SetDirectory(0)
+        h_mult_d.SetDirectory(0)
+        h_mult_t.SetDirectory(0)
+        h_mult_he3.SetDirectory(0)
+        h_mult_a.SetDirectory(0)
+        h_mult_pi0.SetDirectory(0)
+        h_mult_pipm.SetDirectory(0)
+        
+        # Append to lists
+        hist_list_proton.append((filename_chunk, h_leadin))
+        hist_list_ex.append((filename_chunk, h_ex))
+        hist_list_avail.append((filename_chunk, h_eavail))
+        hist_list_nop_avail.append((filename_chunk, h_notpeavail))
+        hist_list_non_incl_avail.append((filename_chunk, h_non_incl_avail))
+        hist_list_invisible.append((filename_chunk, h_invisible))
+        hist_list_total_e.append((filename_chunk, h_total_e))  # ADDED: Append to list
+       # hist_list_missing_kdar.append((filename_chunk, h_missing_kdar))
+
+        hist_list_dpt.append((filename_chunk, h_dpt))
+        hist_list_dat.append((filename_chunk, h_dat))
+        
+        hist_list_momp_casc.append((filename_chunk, h_momp_casc))
+        hist_list_momp_deex.append((filename_chunk, h_momp_deex))
+
+        hist_list_momgamma.append((filename_chunk, h_momgamma))
+
+        hist_list_momn_casc.append((filename_chunk, h_momn_casc))
+        hist_list_momn_deex.append((filename_chunk, h_momn_deex))
+        hist_list_momd.append((filename_chunk, h_momd))
+        hist_list_momt.append((filename_chunk, h_momt))
+        hist_list_momhe3.append((filename_chunk, h_momhe3))
+        hist_list_moma.append((filename_chunk, h_moma))
+        hist_list_mompi0.append((filename_chunk, h_mompi0))
+        hist_list_mompipm.append((filename_chunk, h_mompipm))
+
+        hist_list_mult_p.append((filename_chunk, h_mult_p))
+        hist_list_mult_gamma.append((filename_chunk, h_mult_gamma))
+        hist_list_mult_n.append((filename_chunk, h_mult_n))
+        hist_list_mult_d.append((filename_chunk, h_mult_d))
+        hist_list_mult_t.append((filename_chunk, h_mult_t))
+        hist_list_mult_he3.append((filename_chunk, h_mult_he3))
+        hist_list_mult_a.append((filename_chunk, h_mult_a))
+        hist_list_mult_pi0.append((filename_chunk, h_mult_pi0))
+        hist_list_mult_pipm.append((filename_chunk, h_mult_pipm))
+
+        f.Close()
+
+    ROOT.gStyle.SetOptTitle(0)
+    out_file = ROOT.TFile("paper_combined_comparisons_{}.root".format(name), "RECREATE")
+    latex_font = 132
+
+    # Canvas helper definitions remain standard...
+    def draw_canvas(canvas_name, hist_list, ymax=None, ymin=None):
+        c = ROOT.TCanvas(canvas_name, canvas_name, 650, 600)
+        c.SetGrayscale(False)
+        c.SetLeftMargin(0.17)   # Default is ~0.12
+        c.SetRightMargin(0.08)  # Default is ~0.10
+        c.SetTopMargin(0.06)    # Default is ~0.10
+        c.SetBottomMargin(0.12) # Default is ~0.12
+
+
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+        #ROOT.gPad.SetBottomMargin(0.15) 
+        #ROOT.gPad.SetLeftMargin(0.12)
+        
+
+        legend = ROOT.TLegend(0.52, 0.67, 0.86, 0.90)
+        legend.SetNColumns(1) 
+        legend.SetTextFont(latex_font) 
+        legend.SetBorderSize(0) 
+        legend.SetFillStyle(1001)  # Solid fill
+        legend.SetFillColor(ROOT.kWhite)
+        legend.SetTextSize(0.03) 
+
+        valid_hists = []
+        for name, h in hist_list:
+            #print(name,h)
+            #print(event_no)
+            #print(h.Integral())
+            h.Scale(1/ event_no)
+            #print(h.Integral())
+
+            valid_hists.append((name, h))
+
+        if ymax is None and valid_hists:
+            global_max = max(h.GetMaximum() for _, h in valid_hists)
+            ymax = global_max * 1.2
+
+        for i, (name, h) in enumerate(valid_hists):
+            h_name = h.GetName()
+            if ("dat" in h_name or "dpt" in h_name or "excitation_E" in h_name) and "no cascade" in name:
+                continue
+
+            
+            color, style = styles[i]
+            
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(4) 
+            h.SetStats(0) 
+
+            h.GetXaxis().CenterTitle(True)
+            h.GetYaxis().CenterTitle(True)
+
+            h.GetYaxis().SetMaxDigits(4)
+
+            # Force X-axis to NEVER use scientific exponent notation
+            h.GetXaxis().SetNoExponent(True)
+
+            h.GetXaxis().SetTitleFont(latex_font)
+            h.GetXaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetXaxis().SetTitleSize(0.05) 
+            h.GetXaxis().SetLabelSize(0.05) 
+            h.GetXaxis().SetTitleOffset(1.0)
+
+            h.GetYaxis().SetTitleSize(0.05) 
+            h.GetYaxis().SetLabelSize(0.05) 
+            h.GetYaxis().SetTitleOffset(1.6)
+
+            if i == 0:
+                h.SetMaximum(ymax)
+                if ymin is not None:
+                    h.SetMinimum(ymin)
+                h.Draw("HIST") 
+            else:
+                h.Draw("HIST SAME")
+                
+            legend.AddEntry(h, name, "l")
+
+        legend.Draw()
+        return c, legend 
+
+    def draw_canvas_casc_deex(canvas_name, hist_list_casc, hist_list_deex, ymax=None, ymin=None):
+
+
+        c = ROOT.TCanvas(canvas_name, canvas_name, 650, 600)
+        c.SetGrayscale(False)
+        c.SetLeftMargin(0.17)   # Default is ~0.12
+        c.SetRightMargin(0.08)  # Default is ~0.10
+        c.SetTopMargin(0.06)    # Default is ~0.10
+        c.SetBottomMargin(0.12) # Default is ~0.12
+
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+
+        legend = ROOT.TLegend(0.52, 0.67, 0.86, 0.90)
+        legend.SetNColumns(1) 
+        legend.SetTextFont(latex_font) 
+        legend.SetBorderSize(0) 
+        legend.SetFillStyle(1001)  # Solid fill
+        legend.SetFillColor(ROOT.kWhite)
+        legend.SetTextSize(0.03) 
+
+        # Process and scale histograms for both lists
+        def process_hists(hist_list):
+            valid = []
+            for name, h in hist_list:
+                print(name, h)
+                print("Entries:", h.GetEntries())  # Prints raw entry count
+                #h.Scale(1 / event_no)
+                print(h.Integral())
+                valid.append((name, h))
+            return valid
+        
+        valid_casc = process_hists(hist_list_casc)
+        print("valid casc ",valid_casc)
+        valid_deex = process_hists(hist_list_deex)
+
+        # Determine global maximum across both lists if ymax is not explicitly provided
+        all_valid = valid_casc + valid_deex
+  
+        if ymax is None and all_valid:
+            global_max = max(h.GetMaximum() for _, h in all_valid)
+            ymax = global_max * 1.2
+
+        def apply_hist_style(h, color, style):
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(4) 
+            h.SetStats(0) 
+
+            h.GetXaxis().CenterTitle(True)
+            h.GetYaxis().CenterTitle(True)
+            h.GetYaxis().SetMaxDigits(4)
+            h.GetXaxis().SetNoExponent(True)
+
+            h.GetXaxis().SetTitleFont(latex_font)
+            h.GetXaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+
+            h.GetXaxis().SetTitleSize(0.05) 
+            h.GetXaxis().SetLabelSize(0.05) 
+            h.GetXaxis().SetTitleOffset(1.0)
+
+            h.GetYaxis().SetTitleSize(0.05) 
+            h.GetYaxis().SetLabelSize(0.05) 
+            h.GetYaxis().SetTitleOffset(1.6)
+
+        first_draw = True
+        num_samples = max(len(valid_deex), len(valid_casc))
+
+        for i in range(num_samples):
+            color, _ = styles[i]
+
+            # 1. Plot De-excitation histogram (Solid Line)
+            if i < len(valid_deex):
+                name_deex, h_deex = valid_deex[i]
+                h_name = h_deex.GetName()
+
+                if not (("dat" in h_name or "dpt" in h_name or "excitation_E" in h_name) and "no cascade" in name_deex):
+                    apply_hist_style(h_deex, color=color, style=1)  # 1 = Solid
+
+                    draw_opt = "HIST" if first_draw else "HIST SAME"
+                    if first_draw:
+                        h_deex.SetMaximum(ymax)
+                        if ymin is not None:
+                            h_deex.SetMinimum(ymin)
+                        first_draw = False
+
+                    h_deex.Draw(draw_opt)
+                    label = name_deex if "deex" in name_deex.lower() else f"{name_deex} (de-excitation)"
+                    legend.AddEntry(h_deex, label, "l")
+
+            # 2. Plot Cascade histogram (Dashed Line, Same Color)
+            if i < len(valid_casc):
+                name_casc, h_casc = valid_casc[i]
+                h_name = h_casc.GetName()
+
+                if not (("dat" in h_name or "dpt" in h_name or "excitation_E" in h_name) and "no cascade" in name_casc):
+                    apply_hist_style(h_casc, color=color, style=2)  # 2 = Dashed
+
+                    draw_opt = "HIST" if first_draw else "HIST SAME"
+                    if first_draw:
+                        h_casc.SetMaximum(ymax)
+                        if ymin is not None:
+                            h_casc.SetMinimum(ymin)
+                        first_draw = False
+
+                    h_casc.Draw(draw_opt)
+                    label = name_casc if "casc" in name_casc.lower() else f"{name_casc} (cascade)"
+                    legend.AddEntry(h_casc, label, "l")
+
+        legend.Draw()
+        return c, legend
+
+    def draw_canvas_with_ratio(canvas_name, hist_list, ymax=None, ymin=None, ratio_min = 0.5, ratio_max = 1.5):
+        c = ROOT.TCanvas(canvas_name, canvas_name, 600, 750)
+        c.SetGrayscale(False)
+        c.SetLeftMargin(0.12)   # Default is ~0.12
+        c.SetRightMargin(0.08)  # Default is ~0.10
+        c.SetTopMargin(0.06)    # Default is ~0.10
+        c.SetBottomMargin(0.0) # Default is ~0.12
+
+        pad1 = ROOT.TPad("pad1", "pad1", 0.0, 0.4, 1.0, 0.98)
+        pad1.SetBottomMargin(0.02)
+        pad1.SetLeftMargin(0.12)   # Default is ~0.12
+        pad1.SetRightMargin(0.08)  # Default is ~0.10
+        pad1.SetTopMargin(0.06)    # Default is ~0.10
+        pad1.SetBottomMargin(0.02) # Default is ~0.12
+
+        pad1.SetTickx(1)
+        pad1.SetTicky(1)
+        pad1.Draw()
+        pad1.cd()
+
+        #legend = ROOT.TLegend(0.42, 0.57, 0.8, 0.9)
+        legend = ROOT.TLegend(0.45, 0.50, 0.8, 0.80)
+        legend.SetNColumns(1) 
+        legend.SetTextFont(latex_font) 
+        legend.SetBorderSize(0) 
+        legend.SetFillStyle(1001)  # Solid fill
+        legend.SetFillColor(ROOT.kWhite)
+        legend.SetTextSize(0.04) 
+
+        valid_hists = []
+        for name, h in hist_list:
+            if ymax is None:
+                integral = h.Integral()
+                if integral > 0:
+                    h.Scale(1/ no_events)
+
+            valid_hists.append((name, h))
+
+        if ymax is None and valid_hists:
+            global_max = max(h.GetMaximum() for _, h in valid_hists)
+            ymax = global_max * 1.2
+
+
+        xaxis_title = hist_list[0][1].GetXaxis().GetTitle()
+
+        for i, (name, h) in enumerate(valid_hists):
+
+            
+            color, style = styles[i % len(styles)]
+            #print(color)
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(3) 
+            h.SetStats(0) 
+
+            h.GetXaxis().SetLabelSize(0)
+            h.GetXaxis().SetTitleSize(0)
+            
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleOffset(1.2)
+
+            h.GetYaxis().SetTitleSize(0.05) 
+            h.GetYaxis().SetLabelSize(0.05) 
+
+            h.GetXaxis().CenterTitle(True)
+            h.GetYaxis().CenterTitle(True)
+
+            h.GetYaxis().SetMaxDigits(3)
+            h.GetXaxis().SetNoExponent(True)
+            
+
+            print(
+                f"Hist: {h.GetName()} | Set Color: {color} | Real LineColor: {h.GetLineColor()}"
+            )
+
+            if i == 0:
+                h.SetMaximum(ymax)
+                if ymin is not None:
+                    h.SetMinimum(ymin)
+                h.Draw("HIST") 
+            else:
+                h.Draw("HIST SAME")
+                
+            legend.AddEntry(h, name, "l")
+
+        legend.Draw()
+
+        c.cd()
+        pad2 = ROOT.TPad("pad2", "pad2", 0.0, 0.15, 1.0, 0.4)
+        pad2.SetLeftMargin(0.12)   # Default is ~0.12
+        pad2.SetRightMargin(0.08)  # Default is ~0.10
+        pad2.SetTopMargin(0.06)    # Default is ~0.10
+        pad2.SetBottomMargin(0.40) # Default is ~0.12
+        pad2.SetTickx(1)
+        pad2.SetTicky(1)
+        pad2.Draw()
+        pad2.cd()
+
+        h_base = hist_list[0][1]
+        ratios = []
+        for i in range(1, len(hist_list)):
+            name, h = hist_list[i]
+            h_ratio = h.Clone(f"{h.GetName()}_ratio")
+            h_ratio.Divide(h_base)
+
+            color, style = styles[i % len(styles)]
+            h_ratio.SetLineColor(color)
+            h_ratio.SetLineStyle(style)
+            h_ratio.SetLineWidth(3)
+            h_ratio.SetStats(0)
+
+            h_ratio.SetTitle("")
+            h_ratio.GetYaxis().SetTitle("NEUT/INCL")
+            h_ratio.GetYaxis().CenterTitle()
+            h_ratio.GetYaxis().SetNdivisions(505)
+            h_ratio.GetYaxis().SetTitleSize(0.11)
+            h_ratio.GetYaxis().SetTitleFont(latex_font)
+            h_ratio.GetYaxis().SetTitleOffset(0.5)
+            h_ratio.GetYaxis().SetLabelFont(latex_font)
+            h_ratio.GetYaxis().SetLabelSize(0.1)
+            
+            h_ratio.GetXaxis().SetTitle(xaxis_title)
+            h_ratio.GetXaxis().SetTitleSize(0.13)
+            h_ratio.GetXaxis().SetTitleFont(latex_font)
+            h_ratio.GetXaxis().SetTitleOffset(1.0)
+            h_ratio.GetXaxis().SetLabelFont(latex_font)
+            h_ratio.GetXaxis().SetLabelSize(0.12)
+
+            h_ratio.GetXaxis().CenterTitle(True)
+            h_ratio.GetYaxis().CenterTitle(True)
+
+            if i == 1:
+                h_ratio.SetMinimum(ratio_min)
+                h_ratio.SetMaximum(ratio_max)
+                h_ratio.Draw("HIST")
+            else:
+                h_ratio.Draw("HIST SAME")
+            ratios.append(h_ratio)
+            
+        line = ROOT.TLine(h_base.GetXaxis().GetXmin(), 1, h_base.GetXaxis().GetXmax(), 1)
+        line.SetLineColor(ROOT.kBlack)
+        line.SetLineStyle(2)
+        line.Draw("SAME")
+
+        c.pad1 = pad1
+        c.pad2 = pad2
+        c.ratios = ratios
+        c.line = line
+
+        pad1.Modified()
+        pad1.Update()
+        pad2.Modified()
+        pad2.Update()
+        
+        c.cd()
+        c.Modified()
+        c.Update()
+        
+        return c, legend
+
+    def draw_canvas_with_ratio2(canvas_name, hist_list, ymax=None, ymin=None, ratio_min=0.5, ratio_max=1.5):
+        c = ROOT.TCanvas(canvas_name, canvas_name, 600, 750)
+        c.SetGrayscale(False)
+        c.SetLeftMargin(0.12)
+        c.SetRightMargin(0.08)
+        c.SetTopMargin(0.06)
+        c.SetBottomMargin(0.0)
+
+        # Upper Pad
+        pad1 = ROOT.TPad("pad1", "pad1", 0.0, 0.4, 1.0, 0.98)
+        pad1.SetLeftMargin(0.12)
+        pad1.SetRightMargin(0.08)
+        pad1.SetTopMargin(0.06)
+        pad1.SetBottomMargin(0.02)
+        pad1.SetTickx(1)
+        pad1.SetTicky(1)
+        pad1.Draw()
+        pad1.cd()
+
+        legend = ROOT.TLegend(0.45, 0.50, 0.8, 0.80)
+        legend.SetNColumns(1) 
+        legend.SetTextFont(latex_font) 
+        legend.SetBorderSize(0) 
+        legend.SetFillStyle(1001)
+        legend.SetFillColor(ROOT.kWhite)
+        legend.SetTextSize(0.04) 
+
+        if ymax is None:
+            global_max = max(h.GetMaximum() for _, h in hist_list)
+            ymax = global_max * 1.2
+
+        xaxis_title = hist_list[0][1].GetXaxis().GetTitle()
+
+        # Draw all histograms on top pad
+        for i, (name, h) in enumerate(hist_list):
+            color, style = styles[i % len(styles)]
+
+            integral = h.Integral()
+            if integral > 0:
+                h.Scale(1.0 / integral)
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(3) 
+            h.SetStats(0) 
+
+            h.GetXaxis().SetLabelSize(0)
+            h.GetXaxis().SetTitleSize(0)
+            
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleOffset(1.2)
+            h.GetYaxis().SetTitleSize(0.05) 
+            h.GetYaxis().SetLabelSize(0.05) 
+
+            h.GetXaxis().CenterTitle(True)
+            h.GetYaxis().CenterTitle(True)
+            h.GetYaxis().SetMaxDigits(3)
+            h.GetXaxis().SetNoExponent(True)
+
+            if i == 0:
+                h.SetMaximum(ymax)
+                if ymin is not None:
+                    h.SetMinimum(ymin)
+                h.Draw("HIST") 
+            else:
+                h.Draw("HIST SAME")
+                
+            legend.AddEntry(h, name, "l")
+
+        legend.Draw()
+
+        # Lower Pad
+        c.cd()
+        pad2 = ROOT.TPad("pad2", "pad2", 0.0, 0.15, 1.0, 0.4)
+        pad2.SetLeftMargin(0.12)
+        pad2.SetRightMargin(0.08)
+        pad2.SetTopMargin(0.06)
+        pad2.SetBottomMargin(0.40)
+        pad2.SetTickx(1)
+        pad2.SetTicky(1)
+        pad2.Draw()
+        pad2.cd()
+
+        ratio_pairs = [(1, 0), (3, 2)]
+
+
+        ratios = []
+        for idx, (num_idx, den_idx) in enumerate(ratio_pairs):
+            name_num, h_num = hist_list[num_idx]
+            name_den, h_den = hist_list[den_idx]
+
+            h_ratio = h_num.Clone(f"{h_num.GetName()}_ratio_{num_idx}_{den_idx}")
+            h_ratio.Divide(h_den)
+
+            color, style = styles[num_idx % len(styles)]
+            h_ratio.SetLineColor(color)
+            h_ratio.SetLineStyle(style)
+            h_ratio.SetLineWidth(3)
+            h_ratio.SetStats(0)
+
+            h_ratio.SetTitle("")
+            h_ratio.GetYaxis().SetTitle("#frac{NEUT SRC}{NuWro SRC}")
+            h_ratio.GetYaxis().CenterTitle()
+            h_ratio.GetYaxis().SetNdivisions(505)
+            h_ratio.GetYaxis().SetTitleSize(0.11)
+            h_ratio.GetYaxis().SetTitleFont(latex_font)
+            h_ratio.GetYaxis().SetTitleOffset(0.5)
+            h_ratio.GetYaxis().SetLabelFont(latex_font)
+            h_ratio.GetYaxis().SetLabelSize(0.1)
+            
+            h_ratio.GetXaxis().SetTitle(xaxis_title)
+            h_ratio.GetXaxis().SetTitleSize(0.13)
+            h_ratio.GetXaxis().SetTitleFont(latex_font)
+            h_ratio.GetXaxis().SetTitleOffset(1.0)
+            h_ratio.GetXaxis().SetLabelFont(latex_font)
+            h_ratio.GetXaxis().SetLabelSize(0.12)
+
+            h_ratio.GetXaxis().CenterTitle(True)
+            h_ratio.GetYaxis().CenterTitle(True)
+
+            if idx == 0:
+                h_ratio.SetMinimum(ratio_min)
+                h_ratio.SetMaximum(ratio_max)
+                h_ratio.Draw("HIST")
+            else:
+                h_ratio.Draw("HIST SAME")
+
+            ratios.append(h_ratio)
+
+
+        h_base = hist_list[0][1]
+        line = ROOT.TLine(h_base.GetXaxis().GetXmin(), 1, h_base.GetXaxis().GetXmax(), 1)
+        line.SetLineColor(ROOT.kBlack)
+        line.SetLineStyle(2)
+        line.Draw("SAME")
+
+        c.pad1 = pad1
+        c.pad2 = pad2
+        c.ratios = ratios
+        c.line = line
+
+        pad1.Modified()
+        pad1.Update()
+        pad2.Modified()
+        pad2.Update()
+        
+        c.cd()
+        c.Modified()
+        c.Update()
+        
+        return c, legend
+
+
+    def draw_side_by_side_canvas(canvas_name, hist_list_energy, hist_list_mult, ymax_left=None, ymax_right=None):
+        c = ROOT.TCanvas(canvas_name, canvas_name, 1400, 750)
+        c.Divide(2, 1)
+
+        def configure_and_draw(pad_idx, hist_list, ymax=None):
+            c.cd(pad_idx)
+            ROOT.gPad.SetTickx(1)
+            ROOT.gPad.SetTicky(1)
+            ROOT.gPad.SetBottomMargin(0.15) 
+            ROOT.gPad.SetLeftMargin(0.12)
+
+            legend = ROOT.TLegend(0.35, 0.7, 0.60, 0.80) 
+            legend.SetNColumns(1) 
+            legend.SetTextFont(latex_font) 
+            legend.SetBorderSize(0) 
+            legend.SetFillStyle(0)  
+            legend.SetTextSize(0.04) 
+
+            if ymax is None:
+                global_max = max(h.GetMaximum() for _, h in hist_list)
+                ymax = global_max * 1.2
+
+            for i, (name, h) in enumerate(hist_list):
+                color, style = styles[i % len(styles)]
+                
+                h.SetLineColor(color)
+                h.SetLineStyle(style)
+                h.SetLineWidth(2) 
+                h.SetStats(0) 
+
+                h.GetXaxis().SetTitleFont(latex_font)
+                h.GetXaxis().SetLabelFont(latex_font)
+                h.GetYaxis().SetTitleFont(latex_font)
+                h.GetYaxis().SetLabelFont(latex_font)
+                h.GetXaxis().SetTitleSize(0.05) 
+                h.GetXaxis().SetLabelSize(0.05) 
+                h.GetXaxis().SetTitleOffset(1.0)
+                h.GetYaxis().SetTitleOffset(1.1)
+                h.GetYaxis().SetTitleSize(0.05) 
+                h.GetYaxis().SetLabelSize(0.05) 
+
+                h.GetXaxis().CenterTitle(True)
+                h.GetYaxis().CenterTitle(True)
+
+                h.GetYaxis().SetMaxDigits(3)
+                h.GetXaxis().SetNoExponent(True)
+
+                if i == 0:
+                    h.SetMaximum(ymax)
+                    h.Draw("HIST") 
+                else:
+                    h.Draw("HIST SAME")
+                    
+                legend.AddEntry(h, name, "l")
+            legend.Draw()
+            return legend
+
+        leg_e = configure_and_draw(1, hist_list_energy, ymax_left)
+        leg_m = configure_and_draw(2, hist_list_mult, ymax_right)
+        
+        c.legends = (leg_e, leg_m)
+        return c, c.legends
+    
+    # Aggregated property canvases
+    c1, leg1 = draw_canvas("c_leading_proton", hist_list_proton)#, ymax=31000)
+    #c1.SaveAs("c_leading_proton.pdf")
+    c2, leg2 = draw_canvas("c_excitation_energy", hist_list_ex)
+    c3, leg3 = draw_canvas_with_ratio("c_avail_energy", hist_list_avail)#, ymax=34000)
+    c4, leg4 = draw_canvas_with_ratio("c_nop_avail_energy", hist_list_nop_avail)#, ymax=30000)
+    c13, leg13 = draw_canvas_with_ratio("c_non_incl_avail_energy", hist_list_non_incl_avail)#, ymax=35000)
+    
+    # Invisible & Total Energy Canvases
+    c18, leg18 = draw_canvas_with_ratio("c_invisible_energy", hist_list_invisible)
+    c19, leg19 = draw_canvas_with_ratio("c_total_energy", hist_list_total_e)  # ADDED: Total Energy canvas
+
+    # KDAR canvas
+    #c14, leg14 = draw_kdar_canvas("c_missing_energy_kdar", hist_list_missing_kdar) 
+
+    # Transverse kinematics canvases
+    c16, leg16 = draw_canvas_with_ratio("c_dpt", hist_list_dpt)#, ymax=65000)
+    c17, leg17 = draw_canvas_with_ratio("c_dat", hist_list_dat)#, ymax=26000)
+
+    c5_mom, leg5_mom = draw_canvas_casc_deex("c_tot_proton_mom", hist_list_momp_casc, hist_list_momp_deex)
+    c5_mult, leg5_mult = draw_canvas("c_tot_proton_mult", hist_list_mult_p)
+    
+    # Neutron plots (Momentum with ratio, Multiplicity without ratio)
+    c7_mom, leg7_mom = draw_canvas_casc_deex("c_tot_neutron_mom", hist_list_momn_casc, hist_list_momn_deex)
+    c7_mult, leg7_mult = draw_canvas("c_tot_neutron_mult", hist_list_mult_n)
+
+    # Other Particle Specific Split Canvases (Momentum + Multiplicity)
+    c6, legs6 = draw_side_by_side_canvas("c_tot_gamma_mom_and_mult", hist_list_momgamma, hist_list_mult_gamma)
+    c8, legs8 = draw_side_by_side_canvas("c_tot_deuteron_mom_and_mult", hist_list_momd, hist_list_mult_d)#, ymax_left=4500, ymax_right=550000)
+    c9, legs9 = draw_side_by_side_canvas("c_tot_triton_mom_and_mult", hist_list_momt, hist_list_mult_t)
+    c15, legs15 = draw_side_by_side_canvas("c_tot_he3_mom_and_mult", hist_list_momhe3, hist_list_mult_he3)#, ymax_left=1600, ymax_right=550000)
+    c10, legs10 = draw_side_by_side_canvas("c_tot_alpha_mom_and_mult", hist_list_moma, hist_list_mult_a)#, ymax_left=7000, ymax_right=350000)
+    c11, legs11 = draw_side_by_side_canvas("c_tot_pi0_mom_and_mult", hist_list_mompi0, hist_list_mult_pi0)
+    c12, legs12 = draw_side_by_side_canvas("c_tot_pipm_mom_and_mult", hist_list_mompipm, hist_list_mult_pipm)
+
+
+    canvases = [
+        (c1, "c_leading_proton"),
+        (c2, "c_excitation_energy"),
+        (c3, "c_avail_energy"),
+        (c4, "c_nop_avail_energy"),
+        (c13, "c_non_incl_avail_energy"),
+        (c18, "c_invisible_energy"),
+        (c19, "c_total_energy"),
+        (c16, "c_dpt"),
+        (c17, "c_dat"),
+        (c5_mom, "c_tot_proton_mom"),
+        (c5_mult, "c_tot_proton_mult"),
+        (c7_mom, "c_tot_neutron_mom"),
+        (c7_mult, "c_tot_neutron_mult"),
+        (c6, "c_tot_gamma_mom_and_mult"),
+        (c8, "c_tot_deuteron_mom_and_mult"),
+        (c9, "c_tot_triton_mom_and_mult"),
+        (c15, "c_tot_he3_mom_and_mult"),
+        (c10, "c_tot_alpha_mom_and_mult"),
+        (c11, "c_tot_pi0_mom_and_mult"),
+        (c12, "c_tot_pipm_mom_and_mult"),
+    ]
+
+
+
+
+
+    output_dir = "CCQE_combined_plots"
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_pdf = os.path.join(output_dir, f"paper_plots_{name[0]}.pdf")
+
+    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5_mom, c5_mult, c6, c7_mom, c7_mult, c8, c9, c15, c10, c11, c12]
+
+    for i, canvas in enumerate(canvases):
+        canvas.cd()
+        canvas.Update()
+        
+        if i == 0:
+            canvas.Print(f"{output_pdf}(")
+        elif i == len(canvases) - 1:
+            canvas.Print(f"{output_pdf})")
+        else:
+            canvas.Print(output_pdf)
+
+  
+    out_file.cd() 
+
+    for color_idx in [1179, 1180, 1181, 1182]:
+        tcolor_obj = ROOT.gROOT.GetColor(color_idx)
+        if tcolor_obj:
+            tcolor_obj.Write()
+
+    c1.Write()
+    c2.Write()
+    c3.Write()
+    c4.Write()
+    c5_mult.Write()
+    c5_mom.Write()
+    c6.Write()
+    c7_mult.Write()
+    c7_mom.Write()
+    c8.Write()
+    c9.Write()
+    c15.Write()
+    c10.Write()
+    c11.Write()
+    c12.Write()
+    c13.Write()
+    #c14.Write()
+    c16.Write()
+    c17.Write()
+    c18.Write()
+    c19.Write()  # ADDED: Write Total Energy canvas
+    
+    out_file.Close()
+
+
+def pion_combined_plots(filename, name, filename_list=None):
     if filename_list is None:
         filename_list = []
         
@@ -386,7 +1605,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     hist_list_momhe3 = []
     hist_list_moma = []
     hist_list_mompi0 = []
-    hist_list_mompipm = []
+    hist_list_mompip = []
+    hist_list_mompim = []
 
     # Multiplicity lists
     hist_list_mult_p = []
@@ -397,7 +1617,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     hist_list_mult_he3 = []
     hist_list_mult_a = []
     hist_list_mult_pi0 = []
-    hist_list_mult_pipm = []
+    hist_list_mult_pip = []
+    hist_list_mult_pim = []
 
     """
         styles = [
@@ -446,6 +1667,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 #(ROOT.kOrange + 7, 4),  # Modified to Petroff Yellow
             ]
     """
+    """
     legend_name = ["No SRC Contribution", 
                    "NEUT SRC",
                    "NuWro SRC, no Kin. Cut",
@@ -460,6 +1682,22 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 (ROOT.kRed,1), 
                 (ROOT.kMagenta,1), 
             ]
+    """
+
+
+    legend_name = [
+                    "NEUT Cascade",
+                    "INCL + ABLA",        
+                ]
+
+    styles = [
+                
+                (ROOT.kAzure,1),
+                (ROOT.kBlue, 1), 
+                (ROOT.kOrange+7,1),
+            ]
+
+
                 #(ROOT.kBlue, 4),  # Modified to Petroff Grape
                 #(ROOT.kOrange + 7, 1),  # Modified to Petroff Red
                 #(ROOT.kOrange + 7, 4),  # Modified to Petroff Yellow
@@ -517,10 +1755,6 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_total_e.Sumw2()
         h_total_e.SetTitle(";E_{Total} [MeV];Counts")
 
-       # h_missing_kdar = ROOT.TH1D(f"h_missing_E_kdar_{filename_chunk}", "KDAR Missing Energy Distribution", 21, -10.0, 95.0)
-       # h_missing_kdar.Sumw2()
-      #  h_missing_kdar.SetTitle(";E_{miss}^{KDAR} [MeV];Counts")
-
         h_dpt = ROOT.TH1D(f"h_dpt_{filename_chunk}", "#delta p_{T} Distribution", 50, 0.0, 1000.0)
         h_dpt.Sumw2()
         h_dpt.SetTitle(";#delta p _{T} [MeV/c];Counts")
@@ -558,13 +1792,17 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_moma.Sumw2()
         h_moma.SetTitle(";P_{#alpha}^{Total} [MeV/c];Counts")
         
-        h_mompi0 = ROOT.TH1D(f"h_mompi0_{filename_chunk}", "Total #pi^{0} Momentum Distribution", 100, 0.0, 500)
+        h_mompi0 = ROOT.TH1D(f"h_mompi0_{filename_chunk}", "Total #pi^{0} Momentum Distribution", 100, 0.0, 1000)
         h_mompi0.Sumw2()
         h_mompi0.SetTitle(";P_{#pi^{0}}^{Total} [MeV/c];Counts")
         
-        h_mompipm = ROOT.TH1D(f"h_mompipm_{filename_chunk}", "Total #pi^{#pm} Momentum Distribution", 100, 0.0, 500)
-        h_mompipm.Sumw2()
-        h_mompipm.SetTitle(";P_{#pi^{#pm}}^{Total} [MeV/c];Counts")
+        h_mompip = ROOT.TH1D(f"h_mompipm_{filename_chunk}", "Total #pi^{+} Momentum Distribution", 100, 0.0, 1000)
+        h_mompip.Sumw2()
+        h_mompip.SetTitle(";P_{#pi^{+}}^{Total} [MeV/c];Counts")
+
+        h_mompim = ROOT.TH1D(f"h_mompipm_{filename_chunk}", "Total #pi^{-} Momentum Distribution", 100, 0.0, 500)
+        h_mompim.Sumw2()
+        h_mompim.SetTitle(";P_{#pi^{-}}^{Total} [MeV/c];Counts")
 
         # --- Multiplicity histograms ---
         h_mult_p = ROOT.TH1D(f"h_mult_p_{filename_chunk}", "Proton Multiplicity", 15, 0.0, 15)
@@ -599,9 +1837,13 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_mult_pi0.Sumw2()
         h_mult_pi0.SetTitle(";N_{#pi^{0}};Counts")
 
-        h_mult_pipm = ROOT.TH1D(f"h_mult_pipm_{filename_chunk}", "#pi^{#pm} Multiplicity", 10, 0.0, 10)
-        h_mult_pipm.Sumw2()
-        h_mult_pipm.SetTitle(";N_{#pi^{#pm}};Counts")
+        h_mult_pip = ROOT.TH1D(f"h_mult_pip_{filename_chunk}", "#pi^{+} Multiplicity", 10, 0.0, 10)
+        h_mult_pip.Sumw2()
+        h_mult_pip.SetTitle(";N_{#pi^{+}};Counts")
+
+        h_mult_pim = ROOT.TH1D(f"h_mult_pip_{filename_chunk}", "#pi^{-} Multiplicity", 10, 0.0, 10)
+        h_mult_pim.Sumw2()
+        h_mult_pim.SetTitle(";N_{#pi^{-}};Counts")
         event_no = 0
         for event in t:
             nvect = event.vectorbranch
@@ -609,26 +1851,22 @@ def ccqe_combined_plots(filename, name, filename_list=None):
             event_no +=1
             if event_no % 100000 == 0:
                 print("event number ", event_no)
-            if event_no == 500000:
+            if event_no == 5000:
                 break
             
-            if nvect_class.eventType == EventType.SRC or nvect_class.eventType == EventType.MF: 
+            if nvect_class.eventType == EventType.piProd: 
                 dpt, dat = nvect_class.get_deltaPT()
                 
                 h_dpt.Fill(dpt)
                 h_dat.Fill(dat)
 
-                if nvect_class.eventType == EventType.MF:
-                    if nvect_class.excitation_E_CCQE() < 0.0:
+                if nvect_class.eventType == EventType.piProd:
+                    if nvect_class.excitation_E_pion() < 0.0:
                         h_ex.Fill(0.0)
                     else:
-                        h_ex.Fill(nvect_class.excitation_E_CCQE())
-                elif nvect_class.eventType == EventType.SRC:
-                    if nvect_class.excitation_E_SRC() < 0.0:
-                        h_ex.Fill(0.0)
-                    else:
-                        h_ex.Fill(nvect_class.excitation_E_SRC())
+                        h_ex.Fill(nvect_class.excitation_E_pion())
 
+            
                # Missing_energy_kdar, E_Miss = nvect_class.Missing_energy_kdar2()
                # if Missing_energy_kdar:
                #     h_missing_kdar.Fill(E_Miss)
@@ -656,7 +1894,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 total_he3_mom = 0
                 total_alpha_mom = 0
                 total_pi0_mom = 0
-                total_pipm_mom = 0
+                total_pip_mom = 0
+                total_pim_mom = 0
 
                 mult_p = 0
                 mult_gamma = 0
@@ -666,7 +1905,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 mult_he3 = 0
                 mult_a = 0
                 mult_pi0 = 0
-                mult_pipm = 0
+                mult_pip = 0
+                mult_pim = 0
                 
                 for particle, energy in zip(particles, energies):
                     total_E += energy
@@ -706,9 +1946,12 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                     elif particle == 111: # Pi0
                         total_pi0_mom += np.sqrt((energy+134.98)**2 - 134.98**2)
                         mult_pi0 += 1
-                    elif abs(particle) == 211: # Pi+-
-                        total_pipm_mom += np.sqrt((energy+139.57)**2 - 139.57**2)
-                        mult_pipm += 1
+                    elif particle == 211: # Pi+-
+                        total_pip_mom += np.sqrt((energy+139.57)**2 - 139.57**2)
+                        mult_pip += 1
+                    elif particle == -211: # Pi+-
+                        total_pim_mom += np.sqrt((energy+139.57)**2 - 139.57**2)
+                        mult_pim += 1
                 
                 # Fill energy histograms (skipping zeros)
                 if non_proton_evail > 0: h_notpeavail.Fill(non_proton_evail)
@@ -725,7 +1968,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 if total_he3_mom > 0: h_momhe3.Fill(total_he3_mom)
                 if total_alpha_mom > 0: h_moma.Fill(total_alpha_mom)
                 if total_pi0_mom > 0: h_mompi0.Fill(total_pi0_mom)
-                if total_pipm_mom > 0: h_mompipm.Fill(total_pipm_mom)
+                if total_pip_mom > 0: h_mompip.Fill(total_pip_mom)
+                if total_pim_mom > 0: h_mompim.Fill(total_pim_mom)
 
                 # Fill multiplicity histograms
                 h_mult_p.Fill(mult_p)
@@ -736,7 +1980,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
                 h_mult_he3.Fill(mult_he3)
                 h_mult_a.Fill(mult_a)
                 h_mult_pi0.Fill(mult_pi0)
-                h_mult_pipm.Fill(mult_pipm)
+                h_mult_pip.Fill(mult_pip)
+                h_mult_pim.Fill(mult_pim)
 
                 if nvect_class.HMPMom:
                     h_leadin.Fill(nvect_class.HMPMom)
@@ -762,7 +2007,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_momhe3.SetDirectory(0)
         h_moma.SetDirectory(0)
         h_mompi0.SetDirectory(0)
-        h_mompipm.SetDirectory(0)
+        h_mompip.SetDirectory(0)
+        h_mompim.SetDirectory(0)
 
         h_mult_p.SetDirectory(0)
         h_mult_gamma.SetDirectory(0)
@@ -772,7 +2018,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         h_mult_he3.SetDirectory(0)
         h_mult_a.SetDirectory(0)
         h_mult_pi0.SetDirectory(0)
-        h_mult_pipm.SetDirectory(0)
+        h_mult_pip.SetDirectory(0)
+        h_mult_pim.SetDirectory(0)
         
         # Append to lists
         hist_list_proton.append((filename_chunk, h_leadin))
@@ -795,7 +2042,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         hist_list_momhe3.append((filename_chunk, h_momhe3))
         hist_list_moma.append((filename_chunk, h_moma))
         hist_list_mompi0.append((filename_chunk, h_mompi0))
-        hist_list_mompipm.append((filename_chunk, h_mompipm))
+        hist_list_mompip.append((filename_chunk, h_mompip))
+        hist_list_mompim.append((filename_chunk, h_mompim))
 
         hist_list_mult_p.append((filename_chunk, h_mult_p))
         hist_list_mult_gamma.append((filename_chunk, h_mult_gamma))
@@ -805,7 +2053,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         hist_list_mult_he3.append((filename_chunk, h_mult_he3))
         hist_list_mult_a.append((filename_chunk, h_mult_a))
         hist_list_mult_pi0.append((filename_chunk, h_mult_pi0))
-        hist_list_mult_pipm.append((filename_chunk, h_mult_pipm))
+        hist_list_mult_pip.append((filename_chunk, h_mult_pip))
+        hist_list_mult_pim.append((filename_chunk, h_mult_pim))
 
         f.Close()
 
@@ -828,10 +2077,8 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         #ROOT.gPad.SetBottomMargin(0.15) 
         #ROOT.gPad.SetLeftMargin(0.12)
         
-        #legend = ROOT.TLegend(0.52, 0.57, 0.9, 0.9)
         
-        legend = ROOT.TLegend(0.47, 0.65, 0.85, 0.9)
-        #legend = ROOT.TLegend(0.52, 0.77, 0.9, 0.9)
+        legend = ROOT.TLegend(0.55, 0.75, 0.82, 0.85)
         legend.SetNColumns(1) 
         legend.SetTextFont(latex_font) 
         legend.SetBorderSize(0) 
@@ -904,7 +2151,7 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         pad1.Draw()
         pad1.cd()
 
-        legend = ROOT.TLegend(0.42, 0.57, 0.8, 0.9)
+        legend = ROOT.TLegend(0.42, 0.17, 0.8, 0.9)
         legend.SetNColumns(1) 
         legend.SetTextFont(latex_font) 
         legend.SetBorderSize(0) 
@@ -1128,7 +2375,9 @@ def ccqe_combined_plots(filename, name, filename_list=None):
     c15, legs15 = draw_side_by_side_canvas("c_tot_he3_mom_and_mult", hist_list_momhe3, hist_list_mult_he3)#, ymax_left=1600, ymax_right=550000)
     c10, legs10 = draw_side_by_side_canvas("c_tot_alpha_mom_and_mult", hist_list_moma, hist_list_mult_a)#, ymax_left=7000, ymax_right=350000)
     c11, legs11 = draw_side_by_side_canvas("c_tot_pi0_mom_and_mult", hist_list_mompi0, hist_list_mult_pi0)
-    c12, legs12 = draw_side_by_side_canvas("c_tot_pipm_mom_and_mult", hist_list_mompipm, hist_list_mult_pipm)
+    c12, legs12 = draw_side_by_side_canvas("c_tot_pip_mom_and_mult", hist_list_mompip, hist_list_mult_pip)
+    c13, legs13 = draw_side_by_side_canvas("c_tot_pim_mom_and_mult", hist_list_mompim, hist_list_mult_pim)
+
 
     c1, leg1 = draw_canvas("c_leading_proton", hist_list_proton)#, ymax=31000)
 
@@ -1152,15 +2401,14 @@ def ccqe_combined_plots(filename, name, filename_list=None):
         (c15, "c_tot_he3_mom_and_mult"),
         (c10, "c_tot_alpha_mom_and_mult"),
         (c11, "c_tot_pi0_mom_and_mult"),
-        (c12, "c_tot_pipm_mom_and_mult"),
+        (c12, "c_tot_pip_mom_and_mult"),
+        (c13, "c_tot_pip_mom_and_mult"),
     ]
 
 
 
-
-
-    output_pdf = "fruuuuuuuu.pdf"
-    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5_mom, c5_mult, c6, c7_mom, c7_mult, c8, c9, c15, c10, c11, c12]
+    output_pdf = "fruuuuuuuu_PI.pdf"
+    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5_mom, c5_mult, c6, c7_mom, c7_mult, c8, c9, c15, c10, c11, c12,c13]
 
     for i, canvas in enumerate(canvases):
         canvas.cd()
@@ -1207,8 +2455,1042 @@ def ccqe_combined_plots(filename, name, filename_list=None):
 
 
 
+def ccqe_momentum_plots_side_by_side(filename, out_name, filename_list=None):
+    label1 = "NEUT Cascade"
+    label2 = "INCL + ABLA" 
+    
+    if filename_list is None:
+        filename_list = []
+        
+    files_to_process = [filename] + filename_list
+
+    # Petroff 10 Colorblind Palette via TColor.GetColor (older ROOT compatible)
+    particle_specs = {
+        "Proton":   {"pdg": [2212],       "mass": 938.27,  "color": ROOT.TColor.GetColor("#3f90da"), "style": 1},
+        "Neutron":  {"pdg": [2112],       "mass": 939.57,  "color": ROOT.TColor.GetColor("#ffa90e"), "style": 1},
+        "Deuteron": {"pdg": [1000010020], "mass": 1875.61, "color": ROOT.TColor.GetColor("#bd1f01"), "style": 1},
+        "Triton":   {"pdg": [1000010030], "mass": 2808.92, "color": ROOT.TColor.GetColor("#832db6"), "style": 1},
+        "He-3":     {"pdg": [1000020030], "mass": 2808.39, "color": ROOT.TColor.GetColor("#92dadd"), "style": 1},
+        "Alpha":    {"pdg": [1000020040], "mass": 3727.38, "color": ROOT.TColor.GetColor("#a96b59"), "style": 1},
+        "Pi0":      {"pdg": [111],        "mass": 134.98,  "color": ROOT.TColor.GetColor("#b8ab6f"), "style": 1},
+        "Pi+":      {"pdg": [211],        "mass": 139.57,  "color": ROOT.TColor.GetColor("#e76300"), "style": 1},
+        "Pi-":      {"pdg": [-211],       "mass": 139.57,  "color": ROOT.TColor.GetColor("#94a4a2"), "style": 1},
+    }
+
+    charged_specs = [2212, 1000010020, 1000010030, 1000020030, 1000020040, 211, -211]
+
+    pdg_map = {}
+    for name, spec in particle_specs.items():
+        for pdg in spec["pdg"]:
+            pdg_map[pdg] = (name, spec["mass"])
+
+    charged_names = [name for name, spec in particle_specs.items() if any(p in charged_specs for p in spec["pdg"])]
+
+    # -------------------------------------------------------------------------
+    # 1. FILE PROCESSING
+    # -------------------------------------------------------------------------
+    def process_file(fname, file_tag):
+        print(f"Processing file: {fname}")
+        f = ROOT.TFile.Open(fname)
+        if not f or f.IsZombie():
+            raise RuntimeError(f"Could not open file: {fname}")
+            
+        t = f.Get("neuttree")
+
+        # 1a. Total scalar momentum 1D histograms
+        hists_mom = {}
+        for name, spec in particle_specs.items():
+            h = ROOT.TH1D(f"h_mom_{name}_{file_tag}", f"; p_{{tot}} [MeV/c];Counts", 50, 0.0, 1500.0)
+            h.Sumw2()
+            h.SetLineColor(spec["color"])
+            h.SetLineStyle(spec["style"])
+            h.SetLineWidth(2)
+            h.SetStats(0)
+            hists_mom[name] = h
+
+        # 1b. Leading particle momentum 1D histograms
+        hists_lead_mom = {}
+        for name, spec in particle_specs.items():
+            h = ROOT.TH1D(f"h_lead_mom_{name}_{file_tag}", f"; p_{{lead}} [MeV/c];Counts", 50, 0.0, 1500.0)
+            h.Sumw2()
+            h.SetLineColor(spec["color"])
+            h.SetLineStyle(spec["style"])
+            h.SetLineWidth(2)
+            h.SetStats(0)
+            hists_lead_mom[name] = h
+
+        # 1c. TProfile: Fraction vs E_avail
+        profs_frac = {}
+        for name in charged_names:
+            spec = particle_specs[name]
+            p = ROOT.TProfile(f"p_frac_{name}_{file_tag}", "; E_{avail} [MeV]; Mean Energy Fraction", 150, 0.0, 1500.0)
+            p.SetLineColor(spec["color"])
+            p.SetLineStyle(spec["style"])
+            p.SetLineWidth(2)
+            p.SetStats(0)
+            profs_frac[name] = p
+
+        # 1d. Weighted E_avail 1D histograms for stacking
+        hists_eavail_frac = {}
+        for name in charged_names:
+            spec = particle_specs[name]
+            h = ROOT.TH1D(f"h_eavail_frac_{name}_{file_tag}", "; E_{avail} [MeV]; Counts", 150, 0.0, 1500.0)
+            h.Sumw2()
+            h.SetFillColor(spec["color"])
+            h.SetLineColor(ROOT.kBlack)
+            h.SetLineWidth(1)
+            h.SetStats(0)
+            hists_eavail_frac[name] = h
+
+        event_no = 0
+        for event in t:
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect) 
+            event_no += 1
+            
+            if event_no % 100000 == 0:
+                print(f"[{file_tag}] Event number {event_no}")
+            if event_no == 500000:
+                break
+            print(nvect_class.eventType)
+            if nvect_class.eventType in ( EventType.NC, EventType.MF, EventType.SRC,EventType.piProd,EventType.twop2h):
+                particles, energies = nvect_class.particles()
+                
+                event_species_mom = {p_name: 0.0 for p_name in particle_specs}
+                event_species_lead_mom = {p_name: 0.0 for p_name in particle_specs}
+                event_species_energy = {p_name: 0.0 for p_name in particle_specs}
+                E_avail = 0.0
+
+                for particle, energy in zip(particles, energies):
+                    if particle in pdg_map:
+                        p_name, mass = pdg_map[particle]
+                        mom = np.sqrt((energy + mass)**2 - mass**2) if mass > 0 else energy
+                        
+                        # Total species momentum
+                        event_species_mom[p_name] += mom
+                        
+                        # Leading particle momentum per species
+                        if mom > event_species_lead_mom[p_name]:
+                            event_species_lead_mom[p_name] = mom
+
+                        if particle in charged_specs:
+                            # Total energy for created pions (kinetic + rest mass 139.57 MeV), kinetic for nucleons
+                            particle_energy = (energy + mass) if particle in [211, -211] else energy
+                            E_avail += particle_energy
+                            event_species_energy[p_name] += particle_energy
+
+                # Fill total momentum TH1D histograms
+                for p_name, tot_mom in event_species_mom.items():
+                    if tot_mom > 0:
+                        hists_mom[p_name].Fill(tot_mom)
+
+                # Fill leading momentum TH1D histograms
+                for p_name, lead_mom in event_species_lead_mom.items():
+                    if lead_mom > 0:
+                        hists_lead_mom[p_name].Fill(lead_mom)
+
+                # Fill energy fraction TProfiles and weighted E_avail histograms
+                if E_avail > 0:
+                    for p_name in charged_names:
+                        frac = event_species_energy[p_name] / E_avail
+                        profs_frac[p_name].Fill(E_avail, frac)
+                        if frac > 0:
+                            hists_eavail_frac[p_name].Fill(E_avail, frac)
+
+        for h in hists_mom.values():
+            h.SetDirectory(0)
+        for h in hists_lead_mom.values():
+            h.SetDirectory(0)
+        for p in profs_frac.values():
+            p.SetDirectory(0)
+        for h in hists_eavail_frac.values():
+            h.SetDirectory(0)
+
+        f.Close()
+        return hists_mom, hists_lead_mom, profs_frac, hists_eavail_frac
+
+    hists_m1, hists_lm1, profs_f1, hists_e1 = process_file(files_to_process[0], "f1")
+    hists_m2, hists_lm2, profs_f2, hists_e2 = process_file(files_to_process[1], "f2")
+
+    ROOT.gStyle.SetOptTitle(0)
+    latex_font = 132
+
+    # Canvas helper
+    def create_top_bottom_canvas(canvas_name, title):
+        c = ROOT.TCanvas(canvas_name, title, 1000, 1000)
+        pad1 = ROOT.TPad(f"{canvas_name}_pad1", "Pad 1 (Top)",    0.0, 0.535, 1.0, 1.0)
+        pad2 = ROOT.TPad(f"{canvas_name}_pad2", "Pad 2 (Bottom)", 0.0, 0.0,   1.0, 0.535)
+
+        pad1.SetLeftMargin(0.14)   
+        pad1.SetRightMargin(0.05)  
+        pad1.SetTopMargin(0.08)
+        pad1.SetBottomMargin(0.0)
+
+        pad2.SetLeftMargin(0.14)   
+        pad2.SetRightMargin(0.05) 
+        pad2.SetTopMargin(0.0)     
+        pad2.SetBottomMargin(0.15) 
+
+        pad1.Draw()
+        pad2.Draw()
+        return c, pad1, pad2
+
+    def draw_mom_pad(pad, hists_dict, pad_title, ymax=None, is_bottom_pad=False):
+        pad.cd()
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+
+        if ymax is None:
+            ymax = shared_ymax
+
+        is_first = True
+        for name, h in hists_dict.items():
+            h.GetXaxis().SetNoExponent(True)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleSize(0.06)
+            h.GetYaxis().SetLabelSize(0.05)
+            h.GetYaxis().SetTitleOffset(1.3)
+            h.GetYaxis().CenterTitle(True)
+
+            h.SetMaximum(ymax)
+            h.SetMinimum(0)
+
+            if not is_bottom_pad:
+                h.GetXaxis().SetLabelSize(0)
+                h.GetXaxis().SetTitleSize(0)
+                h.GetXaxis().SetTitle("")
+                h.GetYaxis().ChangeLabel(1, -1, 0)
+            else:
+                h.GetXaxis().SetTitleFont(latex_font)
+                h.GetXaxis().SetLabelFont(latex_font)
+                h.GetXaxis().SetTitleSize(0.06)
+                h.GetXaxis().SetLabelSize(0.05)
+                h.GetXaxis().SetTitleOffset(1.1)
+                h.GetXaxis().CenterTitle(True)
+                h.GetYaxis().ChangeLabel(-1, -1, 0)
+
+            if is_first:
+                h.Draw("HIST")
+                is_first = False
+            else:
+                h.Draw("HIST SAME")
+
+        legend = None
+        if not is_bottom_pad:
+            legend = ROOT.TLegend(0.70, 0.40, 0.90, 0.90)
+            legend.SetTextFont(latex_font)
+            legend.SetBorderSize(0)
+            legend.SetFillStyle(1001)
+            legend.SetFillColor(ROOT.kWhite)
+            legend.SetTextSize(0.04)
+            for name, h in hists_dict.items():
+                legend.AddEntry(h, name, "l")
+            legend.Draw()
+
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextFont(133)
+        latex.SetTextSize(26)
+        x_pos = 0.18
+        y_pos = 0.92 if is_bottom_pad else 0.84
+        latex.DrawLatex(x_pos, y_pos, pad_title)
+
+        return legend
+
+    # -------------------------------------------------------------------------
+    # 2a. CANVAS 1: TOTAL SCALAR MOMENTUM DISTRIBUTIONS
+    # -------------------------------------------------------------------------
+    max_f1 = max(h.GetMaximum() for h in hists_m1.values())
+    max_f2 = max(h.GetMaximum() for h in hists_m2.values())
+    shared_ymax = max(max_f1, max_f2) * 1.25
+    if shared_ymax <= 0:
+        shared_ymax = 1.0
+
+    c_mom, pad1_m, pad2_m = create_top_bottom_canvas("c_momentum", "Momentum Distributions")
+    c_mom.leg1 = draw_mom_pad(pad1_m, hists_m1, label1, ymax=shared_ymax, is_bottom_pad=False)
+    c_mom.leg2 = draw_mom_pad(pad2_m, hists_m2, label2, ymax=shared_ymax, is_bottom_pad=True)
+    c_mom.Update()
+    c_mom.SaveAs(f"{out_name}_momentum.pdf")
+
+    # -------------------------------------------------------------------------
+    # 2b. CANVAS 2: LEADING PARTICLE MOMENTUM DISTRIBUTIONS
+    # -------------------------------------------------------------------------
+    max_lm1 = max(h.GetMaximum() for h in hists_lm1.values())
+    max_lm2 = max(h.GetMaximum() for h in hists_lm2.values())
+    shared_ymax_lead = max(max_lm1, max_lm2) * 1.25
+    if shared_ymax_lead <= 0:
+        shared_ymax_lead = 1.0
+
+    c_lead_mom, pad1_lm, pad2_lm = create_top_bottom_canvas("c_leading_momentum", "Leading Momentum Distributions")
+    c_lead_mom.leg1 = draw_mom_pad(pad1_lm, hists_lm1, label1, ymax=shared_ymax_lead, is_bottom_pad=False)
+    c_lead_mom.leg2 = draw_mom_pad(pad2_lm, hists_lm2, label2, ymax=shared_ymax_lead, is_bottom_pad=True)
+    c_lead_mom.Update()
+    c_lead_mom.SaveAs(f"{out_name}_leading_momentum.pdf")
+
+    # -------------------------------------------------------------------------
+    # 3. CANVAS 3: CHARGED ENERGY FRACTION VS E_AVAIL PROFILES
+    # -------------------------------------------------------------------------
+    c_frac, pad1_f, pad2_f = create_top_bottom_canvas("c_energy_fractions", "Charged Energy Fractions")
+
+    def draw_frac_pad(pad, profs_dict, pad_title, is_bottom_pad=False):
+        pad.cd()
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+
+        is_first = True
+        for name, p in profs_dict.items():
+            p.GetXaxis().SetNoExponent(True)
+            p.GetYaxis().SetTitleFont(latex_font)
+            p.GetYaxis().SetLabelFont(latex_font)
+            p.GetYaxis().SetTitleSize(0.045)
+            p.GetYaxis().SetLabelSize(0.04)
+            p.GetYaxis().SetTitleOffset(1.3)
+            p.GetYaxis().CenterTitle(True)
+
+            p.SetMaximum(1.0)
+            p.SetMinimum(0.0)
+
+            if not is_bottom_pad:
+                p.GetXaxis().SetLabelSize(0)
+                p.GetXaxis().SetTitleSize(0)
+                p.GetXaxis().SetTitle("")
+                p.GetYaxis().ChangeLabel(1, -1, 0)
+            else:
+                p.GetXaxis().SetTitleFont(latex_font)
+                p.GetXaxis().SetLabelFont(latex_font)
+                p.GetXaxis().SetTitleSize(0.045)
+                p.GetXaxis().SetLabelSize(0.04)
+                p.GetXaxis().SetTitleOffset(1.1)
+                p.GetXaxis().CenterTitle(True)
+                p.GetYaxis().ChangeLabel(-1, -1, 0)
+
+            if is_first:
+                p.Draw("HIST")
+                is_first = False
+            else:
+                p.Draw("HIST SAME")
+
+        legend = None
+        if not is_bottom_pad:
+            legend = ROOT.TLegend(0.70, 0.40, 0.90, 0.90)
+            legend.SetTextFont(latex_font)
+            legend.SetBorderSize(0)
+            legend.SetFillStyle(1001)
+            legend.SetFillColor(ROOT.kWhite)
+            legend.SetTextSize(0.04)
+            for name, p in profs_dict.items():
+                legend.AddEntry(p, name, "l")
+            legend.Draw()
+
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextFont(133)
+        latex.SetTextSize(26)
+        x_pos = 0.18
+        y_pos = 0.92 if is_bottom_pad else 0.84
+        latex.DrawLatex(x_pos, y_pos, pad_title)
+
+        return legend
+
+    c_frac.leg1 = draw_frac_pad(pad1_f, profs_f1, label1, is_bottom_pad=False)
+    c_frac.leg2 = draw_frac_pad(pad2_f, profs_f2, label2, is_bottom_pad=True)
+    c_frac.Update()
+    c_frac.SaveAs(f"{out_name}_energy_fractions.pdf")
+
+    # -------------------------------------------------------------------------
+    # 4. CANVAS 4: STACKED E_AVAIL DISTRIBUTION (WEIGHTED BY SPECIES FRACTION)
+    # -------------------------------------------------------------------------
+    c_eavail, pad1_e, pad2_e = create_top_bottom_canvas("c_eavail_stacked", "Stacked E_avail Breakdown")
+
+    sum_e1 = hists_e1[charged_names[0]].Clone("sum_e1")
+    sum_e1.Reset()
+    for h in hists_e1.values():
+        sum_e1.Add(h)
+
+    sum_e2 = hists_e2[charged_names[0]].Clone("sum_e2")
+    sum_e2.Reset()
+    for h in hists_e2.values():
+        sum_e2.Add(h)
+
+    stack_ymax = max(sum_e1.GetMaximum(), sum_e2.GetMaximum()) * 1.25
+
+    def draw_stacked_eavail_pad(pad, hists_eavail_dict, pad_title, file_tag, is_bottom_pad=False):
+        pad.cd()
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+
+        hstack = ROOT.THStack(f"hs_eavail_{file_tag}", "; E_{avail} [MeV]; Counts")
+        for name in charged_names:
+            hstack.Add(hists_eavail_dict[name])
+
+        hstack.Draw("HIST")
+        hstack.SetMaximum(stack_ymax)
+        hstack.SetMinimum(0.0)
+
+        hstack.GetYaxis().SetTitleFont(latex_font)
+        hstack.GetYaxis().SetLabelFont(latex_font)
+        hstack.GetYaxis().SetTitleSize(0.06)
+        hstack.GetYaxis().SetLabelSize(0.05)
+        hstack.GetYaxis().SetTitleOffset(1.3)
+        hstack.GetYaxis().CenterTitle(True)
+
+        if not is_bottom_pad:
+            hstack.GetXaxis().SetLabelSize(0)
+            hstack.GetXaxis().SetTitleSize(0)
+            hstack.GetXaxis().SetTitle("")
+            hstack.GetYaxis().ChangeLabel(1, -1, 0)
+        else:
+            hstack.GetXaxis().SetNoExponent(True)
+            hstack.GetXaxis().SetTitleFont(latex_font)
+            hstack.GetXaxis().SetLabelFont(latex_font)
+            hstack.GetXaxis().SetTitleSize(0.06)
+            hstack.GetXaxis().SetLabelSize(0.05)
+            hstack.GetXaxis().SetTitleOffset(1.1)
+            hstack.GetXaxis().CenterTitle(True)
+            hstack.GetYaxis().ChangeLabel(-1, -1, 0)
+
+        legend = None
+        if not is_bottom_pad:
+            legend = ROOT.TLegend(0.70, 0.40, 0.90, 0.90)
+            legend.SetTextFont(latex_font)
+            legend.SetBorderSize(0)
+            legend.SetFillStyle(1001)
+            legend.SetFillColor(ROOT.kWhite)
+            legend.SetTextSize(0.05)
+            for name in reversed(charged_names):
+                legend.AddEntry(hists_eavail_dict[name], name, "f")
+            legend.Draw()
+
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextFont(133)
+        latex.SetTextSize(26)
+        x_pos = 0.18
+        y_pos = 0.92 if is_bottom_pad else 0.84
+        latex.DrawLatex(x_pos, y_pos, pad_title)
+
+        return hstack, legend
+
+    hs1, leg1_e = draw_stacked_eavail_pad(pad1_e, hists_e1, label1, "f1", is_bottom_pad=False)
+    hs2, leg2_e = draw_stacked_eavail_pad(pad2_e, hists_e2, label2, "f2", is_bottom_pad=True)
+
+    c_eavail.hs1 = hs1
+    c_eavail.hs2 = hs2
+    c_eavail.leg1 = leg1_e
+    c_eavail.Update()
+    c_eavail.SaveAs(f"{out_name}_eavail_stacked.pdf")
+
+    # -------------------------------------------------------------------------
+    # 5. WRITE ALL CANVASES & HISTOGRAMS TO ROOT FILE
+    # -------------------------------------------------------------------------
+    out_file = ROOT.TFile(f"{out_name}.root", "RECREATE")
+    
+    c_mom.Write("c_momentum")
+    c_lead_mom.Write("c_leading_momentum")
+    c_frac.Write("c_energy_fractions")
+    c_eavail.Write("c_eavail_stacked")
+
+    for h in hists_m1.values():
+        h.Write()
+    for h in hists_m2.values():
+        h.Write()
+
+    for h in hists_lm1.values():
+        h.Write()
+    for h in hists_lm2.values():
+        h.Write()
+
+    for p in profs_f1.values():
+        p.Write()
+    for p in profs_f2.values():
+        p.Write()
+
+    for h in hists_e1.values():
+        h.Write()
+    for h in hists_e2.values():
+        h.Write()
+
+    out_file.Close()
+
+    print(f"Saved total momentum plot to {out_name}_momentum.pdf")
+    print(f"Saved leading momentum plot to {out_name}_leading_momentum.pdf")
+    print(f"Saved fraction profiles plot to {out_name}_energy_fractions.pdf")
+    print(f"Saved stacked E_avail plot to {out_name}_eavail_stacked.pdf")
+    print(f"Saved all canvases & ROOT objects to {out_name}.root")
+
+    return c_mom, c_lead_mom, c_frac, c_eavail
 
 
+
+def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=None):
+    label1 = "NEUT Cascade"
+    label2 = "INCL + ABLA" 
+
+    #label1 = "FB"
+    #label2 = "abla++"
+    
+    if filename_list is None:
+        filename_list = []
+        
+    files_to_process = [filename] + filename_list
+
+    # Particle specifications and color palette
+    particle_specs = {
+        "Proton":   {"pdg": [2212],       "mass": 938.27,  "color": ROOT.TColor.GetColor("#3f90da"), "style": 1},
+        "Neutron":  {"pdg": [2112],       "mass": 939.57,  "color": ROOT.TColor.GetColor("#ffa90e"), "style": 1},
+        "Deuteron": {"pdg": [1000010020], "mass": 1875.61, "color": ROOT.TColor.GetColor("#bd1f01"), "style": 1},
+        "Triton":   {"pdg": [1000010030], "mass": 2808.92, "color": ROOT.TColor.GetColor("#832db6"), "style": 1},
+        "He-3":     {"pdg": [1000020030], "mass": 2808.39, "color": ROOT.TColor.GetColor("#92dadd"), "style": 1},
+        "Alpha":    {"pdg": [1000020040], "mass": 3727.38, "color": ROOT.TColor.GetColor("#a96b59"), "style": 1},
+        "Pi0":      {"pdg": [111],        "mass": 134.98,  "color": ROOT.TColor.GetColor("#b8ab6f"), "style": 1},
+        "Pi+":      {"pdg": [211],        "mass": 139.57,  "color": ROOT.TColor.GetColor("#e76300"), "style": 1},
+        "Pi-":      {"pdg": [-211],       "mass": 139.57,  "color": ROOT.TColor.GetColor("#94a4a2"), "style": 1},
+    }
+
+    # Stack rank definitions (1st highest momentum down to 5th+ highest)
+    rank_specs = [
+        {"label": "1st (Leading)", "color": ROOT.TColor.GetColor("#1f77b4")},
+        {"label": "2nd",           "color": ROOT.TColor.GetColor("#ff7f0e")},
+        {"label": "3rd",           "color": ROOT.TColor.GetColor("#2ca02c")},
+        {"label": "4th",           "color": ROOT.TColor.GetColor("#d62728")},
+        {"label": "5th+",          "color": ROOT.TColor.GetColor("#9467bd")},
+    ]
+    MAX_RANKS = len(rank_specs)
+
+    pdg_map = {}
+    for name, spec in particle_specs.items():
+        for pdg in spec["pdg"]:
+            pdg_map[pdg] = (name, spec["mass"])
+
+    # -------------------------------------------------------------------------
+    # 1. FILE PROCESSING
+    # -------------------------------------------------------------------------
+    def process_file(fname, file_tag):
+        print(f"Processing file: {fname}")
+        f = ROOT.TFile.Open(fname)
+        if not f or f.IsZombie():
+            raise RuntimeError(f"Could not open file: {fname}")
+            
+        t = f.Get("neuttree")
+
+        # 1a. Histogram for ALL individual particles of each species
+        hists_all_mom = {}
+        for name, spec in particle_specs.items():
+            h = ROOT.TH1D(f"h_all_mom_{name}_{file_tag}", f"; p [MeV/c]; Particle Count", 50, 0.0, 1500.0)
+            h.Sumw2()
+            h.SetLineColor(spec["color"])
+            h.SetLineStyle(spec["style"])
+            h.SetLineWidth(2)
+            h.SetStats(0)
+            hists_all_mom[name] = h
+
+        # 1b. Histograms for 1st, 2nd, 3rd, 4th, 5th+ momentum rank per species
+        hists_rank_mom = {name: [] for name in particle_specs}
+        for name in particle_specs:
+            for r_idx, r_spec in enumerate(rank_specs):
+                h = ROOT.TH1D(f"h_rank_{r_idx}_{name}_{file_tag}", f"; p [MeV/c]; Particle Count", 50, 0.0, 1500.0)
+                h.Sumw2()
+                h.SetFillColor(r_spec["color"])
+                h.SetLineColor(ROOT.kBlack)
+                h.SetLineWidth(1)
+                h.SetStats(0)
+                hists_rank_mom[name].append(h)
+
+        event_no = 0
+        for event in t:
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect) 
+            event_no += 1
+            
+            if event_no % 100000 == 0:
+                print(f"[{file_tag}] Event number {event_no}")
+            if event_no == 500000:
+                break
+
+            if nvect_class.eventType in ( EventType.SRC, EventType.MF, EventType.twop2h ,EventType.piProd, EventType.NC_mf,EventType.NC_SRC):
+                particles, energies = nvect_class.particles()
+                
+                # Store momentum list per particle species for this event
+                event_species_moms = {p_name: [] for p_name in particle_specs}
+
+                for particle, energy in zip(particles, energies):
+                    if particle in pdg_map:
+                        p_name, mass = pdg_map[particle]
+                        mom = np.sqrt((energy + mass)**2 - mass**2) if mass > 0 else energy
+                        event_species_moms[p_name].append(mom)
+
+                # Fill individual particle histograms and rank histograms
+                for p_name, moms in event_species_moms.items():
+                    # Fill individual momentum histogram for every particle present
+                    for m in moms:
+                        hists_all_mom[p_name].Fill(m)
+
+                    # Sort particle momenta descending to determine rank contributions
+                    sorted_moms = sorted(moms, reverse=True)
+                    for idx, mom_val in enumerate(sorted_moms):
+                        rank_idx = min(idx, MAX_RANKS - 1)
+                        hists_rank_mom[p_name][rank_idx].Fill(mom_val)
+
+        for h in hists_all_mom.values():
+            h.SetDirectory(0)
+        for h_list in hists_rank_mom.values():
+            for h in h_list:
+                h.SetDirectory(0)
+
+        f.Close()
+        return hists_all_mom, hists_rank_mom
+
+    hists_all1, hists_rank1 = process_file(files_to_process[0], "f1")
+    hists_all2, hists_rank2 = process_file(files_to_process[1], "f2")
+
+    ROOT.gStyle.SetOptTitle(0)
+    latex_font = 132
+
+    # Canvas helper
+    def create_top_bottom_canvas(canvas_name, title):
+        c = ROOT.TCanvas(canvas_name, title, 1000, 1000)
+        pad1 = ROOT.TPad(f"{canvas_name}_pad1", "Pad 1 (Top)",    0.0, 0.535, 1.0, 1.0)
+        pad2 = ROOT.TPad(f"{canvas_name}_pad2", "Pad 2 (Bottom)", 0.0, 0.0,   1.0, 0.535)
+
+        pad1.SetLeftMargin(0.14)   
+        pad1.SetRightMargin(0.05)  
+        pad1.SetTopMargin(0.08)
+        pad1.SetBottomMargin(0.0)
+
+        pad2.SetLeftMargin(0.14)   
+        pad2.SetRightMargin(0.05) 
+        pad2.SetTopMargin(0.0)     
+        pad2.SetBottomMargin(0.15) 
+
+        pad1.Draw()
+        pad2.Draw()
+        return c, pad1, pad2
+
+    # -------------------------------------------------------------------------
+    # 2. CANVAS 1: ALL INDIVIDUAL PARTICLE MOMENTA (ALL SPECIES OVERLAID)
+    # -------------------------------------------------------------------------
+    max_a1 = max(h.GetMaximum() for h in hists_all1.values())
+    max_a2 = max(h.GetMaximum() for h in hists_all2.values())
+    shared_ymax_all = max(max_a1, max_a2) * 1.25
+    if shared_ymax_all <= 0:
+        shared_ymax_all = 1.0
+
+    c_all_mom, pad1_a, pad2_a = create_top_bottom_canvas("c_all_particle_momentum", "All Particle Momentum")
+
+    def draw_all_mom_pad(pad, hists_dict, pad_title, is_bottom_pad=False):
+        pad.cd()
+        ROOT.gPad.SetTickx(1)
+        ROOT.gPad.SetTicky(1)
+
+        is_first = True
+        for name, h in hists_dict.items():
+            h.GetXaxis().SetNoExponent(True)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleSize(0.06)
+            h.GetYaxis().SetLabelSize(0.05)
+            h.GetYaxis().SetTitleOffset(1.3)
+            h.GetYaxis().CenterTitle(True)
+
+            h.SetMaximum(shared_ymax_all)
+            h.SetMinimum(0)
+
+            if not is_bottom_pad:
+                h.GetXaxis().SetLabelSize(0)
+                h.GetXaxis().SetTitleSize(0)
+                h.GetXaxis().SetTitle("")
+                h.GetYaxis().ChangeLabel(1, -1, 0)
+            else:
+                h.GetXaxis().SetTitleFont(latex_font)
+                h.GetXaxis().SetLabelFont(latex_font)
+                h.GetXaxis().SetTitleSize(0.06)
+                h.GetXaxis().SetLabelSize(0.05)
+                h.GetXaxis().SetTitleOffset(1.1)
+                h.GetXaxis().CenterTitle(True)
+                #h.GetYaxis().ChangeLabel(-1, -1, 0)
+
+            if is_first:
+                h.Draw("HIST")
+                is_first = False
+            else:
+                h.Draw("HIST SAME")
+
+        legend = None
+        if not is_bottom_pad:
+            legend = ROOT.TLegend(0.70, 0.40, 0.90, 0.90)
+            legend.SetTextFont(latex_font)
+            legend.SetBorderSize(0)
+            legend.SetFillStyle(1001)
+            legend.SetFillColor(ROOT.kWhite)
+            legend.SetTextSize(0.04)
+            for name, h in hists_dict.items():
+                legend.AddEntry(h, name, "l")
+            legend.Draw()
+
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextFont(133)
+        latex.SetTextSize(26)
+        x_pos = 0.18
+        y_pos = 0.92 if is_bottom_pad else 0.84
+        latex.DrawLatex(x_pos, y_pos, pad_title)
+
+        return legend
+
+    c_all_mom.leg1 = draw_all_mom_pad(pad1_a, hists_all1, label1, is_bottom_pad=False)
+    c_all_mom.leg2 = draw_all_mom_pad(pad2_a, hists_all2, label2, is_bottom_pad=True)
+    c_all_mom.Update()
+
+    # -------------------------------------------------------------------------
+    # 3. CANVAS SET 2: STACKED RANK CONTRIBUTIONS PER SPECIES
+    # -------------------------------------------------------------------------
+    rank_canvases = {}
+
+    for p_name in particle_specs:
+        sum_h1 = hists_all1[p_name]
+        sum_h2 = hists_all2[p_name]
+        species_ymax = max(sum_h1.GetMaximum(), sum_h2.GetMaximum()) * 1
+        if species_ymax <= 0:
+            species_ymax = 1.0
+
+        c_spec, pad1_s, pad2_s = create_top_bottom_canvas(f"c_rank_stack_{p_name}", f"Rank Breakdown: {p_name}")
+
+        def draw_rank_stack_pad(pad, rank_hists_list, pad_title, file_tag, is_bottom_pad=False):
+            pad.cd()
+            ROOT.gPad.SetTickx(1)
+            ROOT.gPad.SetTicky(1)
+
+            hstack = ROOT.THStack(f"hs_rank_{p_name}_{file_tag}", f"; p [MeV/c]; Particle Count")
+            for h_rank in rank_hists_list:
+                hstack.Add(h_rank)
+
+            hstack.Draw("HIST")
+            hstack.SetMaximum(species_ymax)
+            hstack.SetMinimum(0.0)
+
+            hstack.GetYaxis().SetTitleFont(latex_font)
+            hstack.GetYaxis().SetLabelFont(latex_font)
+            hstack.GetYaxis().SetTitleSize(0.06)
+            hstack.GetYaxis().SetLabelSize(0.05)
+            hstack.GetYaxis().SetTitleOffset(1.3)
+            hstack.GetYaxis().CenterTitle(True)
+
+            if not is_bottom_pad:
+                hstack.GetXaxis().SetLabelSize(0)
+                hstack.GetXaxis().SetTitleSize(0)
+                hstack.GetXaxis().SetTitle("")
+                hstack.GetYaxis().ChangeLabel(1, -1, 0)
+            else:
+                hstack.GetXaxis().SetNoExponent(True)
+                hstack.GetXaxis().SetTitleFont(latex_font)
+                hstack.GetXaxis().SetLabelFont(latex_font)
+                hstack.GetXaxis().SetTitleSize(0.06)
+                hstack.GetXaxis().SetLabelSize(0.05)
+                hstack.GetXaxis().SetTitleOffset(1.1)
+                hstack.GetXaxis().CenterTitle(True)
+                hstack.GetYaxis().ChangeLabel(-1, -1, 0)
+
+            legend = None
+            if not is_bottom_pad:
+                legend = ROOT.TLegend(0.68, 0.45, 0.90, 0.90)
+                legend.SetTextFont(latex_font)
+                legend.SetBorderSize(0)
+                legend.SetFillStyle(1001)
+                legend.SetFillColor(ROOT.kWhite)
+                legend.SetTextSize(0.04)
+                for r_idx in reversed(range(MAX_RANKS)):
+                    legend.AddEntry(rank_hists_list[r_idx], rank_specs[r_idx]["label"], "f")
+                legend.Draw()
+
+            latex = ROOT.TLatex()
+            latex.SetNDC()
+            latex.SetTextFont(133)
+            latex.SetTextSize(26)
+            x_pos = 0.18
+            y_pos = 0.92 if is_bottom_pad else 0.84
+            latex.DrawLatex(x_pos, y_pos, f"{p_name} - {pad_title}")
+
+            return hstack, legend
+
+        hs1, leg1_s = draw_rank_stack_pad(pad1_s, hists_rank1[p_name], label1, "f1", is_bottom_pad=False)
+        hs2, leg2_s = draw_rank_stack_pad(pad2_s, hists_rank2[p_name], label2, "f2", is_bottom_pad=True)
+
+        c_spec.hs1 = hs1
+        c_spec.hs2 = hs2
+        c_spec.leg1 = leg1_s
+        c_spec.Update()
+        rank_canvases[p_name] = c_spec
+
+    # -------------------------------------------------------------------------
+    # 4. SAVE ALL CANVASES TO A SINGLE MULTI-PAGE PDF
+    # -------------------------------------------------------------------------
+
+    output_dir = "CCQE_stacked_momentum_dist"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    pdf_filename  = os.path.join(output_dir, f"all_particles_{out_name[0]}_all_plots.pdf")
+
+    all_canvases = [c_all_mom] + list(rank_canvases.values())
+
+    # Open multi-page PDF container
+    all_canvases[0].Print(f"{pdf_filename}[")
+
+    # Print each canvas as a page into the combined PDF
+    for c in all_canvases:
+        c.Print(pdf_filename)
+
+    # Close multi-page PDF container
+    all_canvases[-1].Print(f"{pdf_filename}]")
+
+    # -------------------------------------------------------------------------
+    # 5. WRITE ALL CANVASES & HISTOGRAMS TO ROOT FILE
+    # -------------------------------------------------------------------------
+    out_file = ROOT.TFile(f"{out_name}_all_particles.root", "RECREATE")
+    
+    c_all_mom.Write("c_all_particle_momentum")
+    for p_name, c_spec in rank_canvases.items():
+        c_spec.Write(f"c_rank_stack_{p_name}")
+
+    for h in hists_all1.values():
+        h.Write()
+    for h in hists_all2.values():
+        h.Write()
+
+    for h_list in hists_rank1.values():
+        for h in h_list:
+            h.Write()
+    for h_list in hists_rank2.values():
+        for h in h_list:
+            h.Write()
+
+    out_file.Close()
+
+
+    print(f"Saved all {len(all_canvases)} canvas pages to single PDF: {pdf_filename}")
+    print(f"Saved all canvases & ROOT objects to ROOT file: {out_name}_all_particles.root")
+
+    return c_all_mom, rank_canvases
+def proton_momentum_plots(filename, name, filename_list=None):
+    if filename_list is None:
+        filename_list = []
+
+    files_to_process = [filename] + filename_list
+    
+    legend_name = [
+                    "NEUT Cascade",
+                    #"INCL (NO ABLA)",
+                    "INCL + ABLA",        
+                ]
+
+    styles = [
+                
+                (ROOT.kAzure,1),
+                (ROOT.kBlue, 1), 
+               # (ROOT.kOrange+7,1),
+            ]
+
+    """
+    legend_name = ["NEUT Cascade - NuWro SRC", 
+                   "NEUT Cascade - Box SRC", 
+                   "INCL + ABLA  - NuWro SRC",
+                   "INCL + ABLA  - Box SRC",
+                   ]
+    
+    styles = [
+                (ROOT.kRed, 4),  # Uses index 2 (modified to Petroff Blue)
+                (ROOT.kBlue, 4),
+                (ROOT.kRed, 1),  
+                (ROOT.kBlue, 1),
+            ]
+    """
+    # Lists to store (label, histogram) for each rank
+    hist_list_p1 = []
+    hist_list_p2 = []
+    hist_list_p3 = []
+    hist_list_p4plus = []
+
+    m_p = 938.27  # Proton mass in MeV/c^2
+
+    for count, fname in enumerate(files_to_process):
+        print(f"Processing file: {fname}")
+        chunk_label = (
+            legend_name[count]
+            if count < len(legend_name)
+            else f"File {count + 1}"
+        )
+
+        f = ROOT.TFile.Open(fname)
+        t = f.Get("neuttree")
+
+        # Rank-based histograms for this file
+        h_p1 = ROOT.TH1D(
+            f"h_p1_{count}",
+            "1^{st} Highest Proton;p_{p} [MeV/c];Counts",
+            150,
+            0.0,
+            1500,
+        )
+        h_p2 = ROOT.TH1D(
+            f"h_p2_{count}",
+            "2^{nd} Highest Proton;p_{p} [MeV/c];Counts",
+            80,
+            0.0,
+            800,
+        )
+        h_p3 = ROOT.TH1D(
+            f"h_p3_{count}",
+            "3^{rd} Highest Proton;p_{p} [MeV/c];Counts",
+            60,
+            0.0,
+            600,
+        )
+        h_p4plus = ROOT.TH1D(
+            f"h_p4plus_{count}",
+            "4^{+} Highest Protons;p_{p} [MeV/c];Counts",
+            40,
+            0.0,
+            400,
+        )
+
+        for h in [h_p1, h_p2, h_p3, h_p4plus]:
+            h.Sumw2()
+            h.SetDirectory(0)
+
+        event_no = 0
+        for event in t:
+            event_no += 1
+            if event_no % 100000 == 0:
+                print(f"  Event number {event_no}")
+            if event_no == 500000:
+                break
+
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect)
+
+            if nvect_class.eventType in (EventType.MF,EventType.twop2h,EventType.piProd):
+                particles, energies = nvect_class.particles()
+
+                # Collect and calculate momentum for all protons in the event
+                proton_momenta = []
+                for particle, energy in zip(particles, energies):
+                    if particle == 2212:  # Proton PDG
+                        p_mom = np.sqrt((energy + m_p)**2 - m_p**2)
+                        proton_momenta.append(p_mom)
+
+                proton_momenta.sort(reverse=True)
+
+                # Fill rank histograms
+                if len(proton_momenta) > 0:
+                    h_p1.Fill(proton_momenta[0])
+                if len(proton_momenta) > 1:
+                    h_p2.Fill(proton_momenta[1])
+                if len(proton_momenta) > 2:
+                    h_p3.Fill(proton_momenta[2])
+                if len(proton_momenta) > 3:
+                    for p in proton_momenta[3:]:
+                        h_p4plus.Fill(p)
+
+        f.Close()
+
+        hist_list_p1.append((chunk_label, h_p1))
+        hist_list_p2.append((chunk_label, h_p2))
+        hist_list_p3.append((chunk_label, h_p3))
+        hist_list_p4plus.append((chunk_label, h_p4plus))
+
+    # --- Plotting on a single canvas with 4 pads side-by-side ---
+    ROOT.gStyle.SetOptTitle(0)
+    latex_font = 132
+
+    # Aspect ratio set for 4 horizontal pads
+    canvas = ROOT.TCanvas(
+        "c_proton_rank_momenta", "Proton Momentum Distributions", 2000, 600
+    )
+    canvas.Divide(4, 1)
+
+    pad_data = [
+        ("1^{st} Highest Proton", hist_list_p1),
+        ("2^{nd} Highest Proton", hist_list_p2),
+        ("3^{rd} Highest Proton", hist_list_p3),
+        ("4^{+} Highest Protons", hist_list_p4plus),
+    ]
+
+    legends = []  # Keep references to prevent garbage collection
+
+    for pad_idx, (pad_title, h_list) in enumerate(pad_data, start=1):
+        pad = canvas.cd(pad_idx)
+        pad.SetLeftMargin(0.14)
+        pad.SetRightMargin(0.04)
+        pad.SetTopMargin(0.10)
+        pad.SetBottomMargin(0.14)
+        pad.SetTickx(1)
+        pad.SetTicky(1)
+
+        # Scale Y axis based on pad maximum
+        global_max = max(h.GetMaximum() for _, h in h_list) if h_list else 1.0
+
+        legend = ROOT.TLegend(0.38, 0.65, 0.92, 0.88)
+        legend.SetNColumns(1)
+        legend.SetTextFont(latex_font)
+        legend.SetBorderSize(0)
+        legend.SetFillStyle(0)
+        legend.SetTextSize(0.035)
+
+        for i, (label, h) in enumerate(h_list):
+            color, style = styles[i % len(styles)]
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(3)
+            h.SetStats(0)
+
+            # Axis formatting
+            h.GetXaxis().SetTitle("p_{p} [MeV/c]")
+            h.GetYaxis().SetTitle("Counts")
+            h.GetXaxis().CenterTitle(True)
+            h.GetYaxis().CenterTitle(True)
+            h.GetXaxis().SetNoExponent(True)
+
+            h.GetXaxis().SetTitleFont(latex_font)
+            h.GetXaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+
+            h.GetXaxis().SetTitleSize(0.05)
+            h.GetXaxis().SetLabelSize(0.045)
+            h.GetYaxis().SetTitleSize(0.05)
+            h.GetYaxis().SetLabelSize(0.045)
+            h.GetXaxis().SetTitleOffset(1.1)
+            h.GetYaxis().SetTitleOffset(1.3)
+
+            if i == 0:
+                h.SetMaximum(global_max * 1.25)
+                h.SetMinimum(0)
+                h.Draw("HIST")
+            else:
+                h.Draw("HIST SAME")
+
+            legend.AddEntry(h, label, "l")
+
+        legend.Draw()
+        legends.append(legend)
+
+        # Pad Header Title
+        title_latex = ROOT.TLatex()
+        title_latex.SetNDC()
+        title_latex.SetTextFont(latex_font)
+        title_latex.SetTextSize(0.05)
+        title_latex.SetTextAlign(22)  # 2 = Horizontal Center, 2 = Vertical Center
+        title_latex.DrawLatex(0.50, 0.94, pad_title)
+
+    canvas.Update()
+    canvas.SaveAs(f"proton_momenta_ranked_{name}.pdf")
+
+    out_file = ROOT.TFile(f"proton_momenta_ranked_{name}.root", "RECREATE")
+    canvas.Write()
+    out_file.Close()
+
+    return canvas
+        
 
 def monoenergetic_CCQE_combined_plots():
 
