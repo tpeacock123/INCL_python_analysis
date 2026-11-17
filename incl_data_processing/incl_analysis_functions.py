@@ -22,14 +22,15 @@ class intChannel_CCQE(Enum):
     noCascadeFSI = 0 
     qeDeEX = 1
     oneProton = 2
-    CascadeNoDeex = 3
-    CascadeNucleonDeex = 4
-    CascadeClusterDeex = 5
-    protonPion = 6
-    muOnly = 7
-    neutronPion = 8
-    other = 9
-    noCascadeFSIPhoton = 10
+    CascadeNucleonNoDeex = 3
+    CascadeClusterNoDeex = 4
+    CascadeNucleonDeex = 5
+    CascadeClusterDeex = 6
+    protonPion = 7
+    muOnly = 8
+    neutronPion = 9
+    other = 10
+    noCascadeFSIPhoton = 11
 
 
 class intChannel_CC0pi(Enum):
@@ -478,7 +479,6 @@ class nvect_reader:
         self.beam_flavour = flavour
         #if self.nopart <=5:
         #    self.isnofsi = True 
-        #else:
             
         self.isnofsi = False
         self.istransparent = False
@@ -653,7 +653,7 @@ class nvect_reader:
                 if (pinfo.fIsAlive == 1):
                     nucleonCounter += 1
 
-            elif 200 < abs(pinfo.fPID) < 250:
+            elif 200 < abs(pinfo.fPID) and  pinfo.fPID < 250:
                 if (pinfo.fIsAlive == 1):
                     pion = True
 
@@ -887,6 +887,14 @@ class nvect_reader:
         return False
    
 
+    def tranparent_proton(self):
+        if self.nopart == 4:
+            return True
+        
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)            
+
+
     def src(self):
         if self.isnofsi == True:
             if self.nopart == 5:
@@ -955,94 +963,117 @@ class nvect_reader:
         #print(E_nu, E_lep, T_had)
         return E_nu - E_lep - T_had
 
-    def excitation_E_CCQE(self):
+    def excitation_E_CCQE(self, carbon = True):
+        if carbon == True:
+            mass_target = 11174.86
+            mass_remnant_p_out = 10252.61 
+            mass_remnant_n_out = 10254.00 
+        elif carbon == False:
+            mass_target = 14895.08
+            mass_remnant_p_out = 13968.93 # NC or nubar (leaves Nitrogen-15)
+            mass_remnant_n_out = 13971.18 # nu (leaves Oxygen-15)
+        else:
+            raise ValueError("Target must be 'Carbon' or 'Oxygen'")
+
         E_nu = 0.0
         E_lep = 0.0 
         E_had = 0.0
         p_had = 0.0
         NC_catch = False
+        
         for i in range(self.nopart):
             pinfo = self.nvect.PartInfo(i)
             if pinfo.fPID == self.incoming_nu and NC_catch == False:
-                p_nu = np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_nu = np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))
+                p_nu = np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_nu = np.linalg.norm(p_nu)
                 NC_catch = True 
-            elif (pinfo.fPID) == self.outgoing_lep:
-                p_lep = np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.lepton_mass**2)
-            if pinfo.fPID == self.outgoing_nucleon and (self.nvect.ParentIdx(i)==2):
-                p_had += np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
+            elif pinfo.fPID == self.outgoing_lep:
+                p_lep = np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_lep = np.sqrt(np.linalg.norm(p_lep)**2 + self.lepton_mass**2)
+            if pinfo.fPID == self.outgoing_nucleon and (self.nvect.ParentIdx(i) == 2):
+                p_had += np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
 
-        #print(E_nu + 11174.86 - E_lep - E_had)
-        E_star = E_nu + 11174.86 - E_lep - E_had
-        p_star =  p_nu - p_lep - p_had
-
+        E_star = E_nu + mass_target - E_lep - E_had
+        p_star = p_nu - p_lep - p_had
 
         if self.NC_flag == True:
-            E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) -  10252.61
-            #print("HERE")
+            E = np.sqrt(E_star**2 - np.linalg.norm(p_star)**2) - mass_remnant_p_out
             return E   
 
         if self.nubar == True:
-            E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - 10252.61
+            E = np.sqrt(E_star**2 - np.linalg.norm(p_star)**2) - mass_remnant_p_out
         elif self.nubar == False:
-            E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - 10254
+            E = np.sqrt(E_star**2 - np.linalg.norm(p_star)**2) - mass_remnant_n_out
 
-        #print(E_star, 10254.27, E )
-        if E < 0:
-            return 0 
-        return E   
+        #if E < 0:
+        #    return 0 
+        return E
     
-    def excitation_E_SRC(self):
+    def excitation_E_SRC(self, carbon = True):
+        # Select target nucleus mass
+        if carbon == True:
+            mass_target = 11174.86
+        elif carbon == False:
+            mass_target = 14895.08
+        else:
+            raise ValueError("Target must be 'Carbon' or 'Oxygen'")
+
         E_nu = 0.0
         E_lep = 0.0 
         E_had = 0.0
         p_had = 0.0
         NC_catch = False
         proton_counter = 0
+
         for i in range(self.nopart):
             pinfo = self.nvect.PartInfo(i)
-            if (pinfo.fPID) == self.incoming_nu and NC_catch == False:
-                p_nu = np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_nu = np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))
+            if pinfo.fPID == self.incoming_nu and NC_catch == False:
+                p_nu = np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_nu = np.linalg.norm(p_nu)
                 NC_catch = True
-            elif (pinfo.fPID) == self.outgoing_lep:
-                p_lep = np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_lep = np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.lepton_mass**2)
+            elif pinfo.fPID == self.outgoing_lep:
+                p_lep = np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_lep = np.sqrt(np.linalg.norm(p_lep)**2 + self.lepton_mass**2)
 
-            if pinfo.fPID == self.outgoing_nucleon and (self.nvect.ParentIdx(i)==2):
-                p_had += np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
-                if pinfo.fPID == (2212):
+            if pinfo.fPID == self.outgoing_nucleon and (self.nvect.ParentIdx(i) == 2):
+                p_had += np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
+                if pinfo.fPID == 2212:
                     proton_counter += 1
-            if (pinfo.fPID == (2212) or pinfo.fPID == (2112)) and (self.nvect.ParentIdx(i)==0) and (pinfo.fStatus ==7 or pinfo.fStatus ==0):
-                p_had += np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()])
-                if pinfo.fPID == (2212):
+            if (pinfo.fPID == 2212 or pinfo.fPID == 2112) and (self.nvect.ParentIdx(i) == 0) and (pinfo.fStatus == 7 or pinfo.fStatus == 0):
+                p_had += np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()])
+                if pinfo.fPID == 2212:
                     proton_counter += 1
-                    E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 938.27**2) 
+                    E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 938.27**2) 
                 elif pinfo.fPID == 2112:
-                    E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(),pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 939.56**2) 
+                    E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 939.56**2) 
 
-        #print(E_nu, E_lep, E_had)
+        E_star = E_nu + mass_target - E_lep - E_had
+        p_star = p_nu - p_lep - p_had
 
-        E_star = E_nu + 11174.86 - E_lep - E_had
-        #print(E_star)
-        p_star = 0.0 #p_nu - p_lep - p_had
-        #print(proton_counter)
-        if (proton_counter == 1):
-            Nuclear_mass = (5)*938.27 + (5)*939.57  - 64.75
-        elif (proton_counter == 2):
-            Nuclear_mass = (4)*938.27 + (6)*939.57  - 64.98
+        if carbon == True:
+            if proton_counter == 1:    
+                Nuclear_mass = (5) * 938.27 + (5) * 939.57 - 64.75
+            elif proton_counter == 2: 
+                Nuclear_mass = (4) * 938.27 + (6) * 939.57 - 64.98
+            else:                     
+                Nuclear_mass = (6) * 938.27 + (4) * 939.57 - 60.32
+
+        elif carbon == False:
+            if proton_counter == 1:    
+                Nuclear_mass = (7) * 938.27 + (7) * 939.57 - 104.68
+            elif proton_counter == 2: 
+                Nuclear_mass = (6) * 938.27 + (8) * 939.57 - 105.31
+            else:                      
+                Nuclear_mass = (8) * 938.27 + (6) * 939.57 - 98.74
+
+        if isinstance(p_star, float) and p_star == 0.0:
+            E = E_star - Nuclear_mass
         else:
-            Nuclear_mass = (6)*938.27 + (4)*939.57  - 60.32
-        #print(Nuclear_mass)
-
-        E = np.sqrt(E_star**2 - np.linalg.norm(p_star**2)) - Nuclear_mass
-        #print(E)
-        #print(E)
-        
-        return E   
+            E = np.sqrt(E_star**2 - np.linalg.norm(p_star)**2) - Nuclear_mass
+            
+        return E
     
     def excitation_E_2p2h(self):
 
@@ -1127,7 +1158,6 @@ class nvect_reader:
        # if E < 0:
         #    return 0 
         return E   
-
 
     def missing_energy_2p2h(self):
         #self.Print()
@@ -1233,11 +1263,13 @@ class nvect_reader:
             pinfo.fP.X()**2 + pinfo.fP.X()**2 +pinfo.fP.Y()**2
             P = (pinfo.fP.X()**2 + pinfo.fP.Y()**2 +pinfo.fP.Z()**2)
             print("momentum", np.sqrt(P))
-            #if pinfo.fPID == 2212 and self.nvect.ParentIdx(i) == 2 and 65 < np.sqrt(P) and np.sqrt(P) < 85:
-            #    input(" ")
+        print("p_casc_energy,nuclear_remnant, nucleonCounter, clusterCounter, transparentProton, pion, photonCounter,proton,prefsi_proton_mom, deex_event, cascade")
+        print(self.proton_momentum_per_channel_CCQE())
+        print(self.eventType.name)
+        particles, energies, flags = self.particles(flag = True, lepton=True)
 
 #        print(self.excitation_E_pion())
-        print(self.eventType.name)
+        
         #print(self.intChannel.name)
         if self.intChannel == intChannel_CCQE.other:
             input(" ")
@@ -1247,6 +1279,9 @@ class nvect_reader:
         if (not (self.eventType == EventType.piProd or self.eventType == EventType.NC_piProd) ):
             print(self.intChannel.name)
 
+        if 8 not in flags and 2 not in flags:
+            input( " ")
+
         return self.eventType.name
     
     def kinetic_energy(self,pinfo):
@@ -1255,8 +1290,6 @@ class nvect_reader:
     def interaction_channel_CCQE(self):
 
         p_casc_energy,nuclear_remnant, nucleonCounter, clusterCounter, transparentProton, pion, photonCounter,proton,prefsi_proton_mom, deex_event, cascade = self.proton_momentum_per_channel_CCQE()
-        #print(p_casc_energy,nuclear_remnant, nucleonCounter, clusterCounter, transparentProton, pion, photonCounter,proton,prefsi_proton_mom, deex_event)
-        
         if len(p_casc_energy) > 0:
             self.HMPMom = np.asarray(p_casc_energy).max()
             if (self.eventType != EventType.NC_mf):
@@ -1266,6 +1299,12 @@ class nvect_reader:
                 self.DaT = 0.0
 
         self.PreFSIProtMom = prefsi_proton_mom
+        if pion:
+            if proton:
+                return intChannel_CCQE.protonPion
+            else:
+                return intChannel_CCQE.neutronPion
+
         if(proton != True):
             
             if  (nucleonCounter > 0) or (clusterCounter > 0) or (pion == True):
@@ -1293,12 +1332,10 @@ class nvect_reader:
             return intChannel_CCQE.CascadeClusterDeex
 
         elif (transparentProton == False) and (proton == True) and (clusterCounter >= 1) and (nucleonCounter >= 1) and (pion == False) and (deex_event == False):
-            print("nuclear cluster cascade")
-            return intChannel_CCQE.CascadeNoDeex
+            return intChannel_CCQE.CascadeClusterNoDeex
 
         elif (transparentProton == False) and (proton == True) and (clusterCounter <= 1) and (nucleonCounter > 1) and (pion == False) and (deex_event == False):
-            print("nuclear cluster cascade")
-            return intChannel_CCQE.CascadeNoDeex
+            return intChannel_CCQE.CascadeNucleonNoDeex
 
         elif (transparentProton == False) and (proton == True) and (pion == True):   
             return intChannel_CCQE.protonPion
@@ -1350,7 +1387,7 @@ class nvect_reader:
         else:
             return intChannel_CC0pi.other
 
-    def particles(self,flag = False):
+    def particles(self,flag = False, lepton=False):
         particle_list = []
         energy_list = []
         flag_list = []
@@ -1404,7 +1441,12 @@ class nvect_reader:
                     flag_list.append(pinfo.fStatus)
 
                 elif pinfo.fPID == 13:
-                    continue
+                    if lepton == False:
+                        continue
+                    else:
+                        particle_list.append(pinfo.fPID)
+                        P = (p2 + 139.27**2)**0.5 - 139.27
+                        flag_list.append(pinfo.fStatus)
                     
                 else:
                     #print("unkown? ") 
@@ -1416,50 +1458,155 @@ class nvect_reader:
             return particle_list,energy_list, flag_list
         return particle_list,energy_list
 
-    def E_reco_bias(self, visible = False, neutron = False):
-        E_reco = 0
+    def E_reco_bias(self, visible=False, energy_thresh=0.0):
+        E_reco = 0.0
+        neutrino_e = 0.0
+
         for i in range(self.nopart):
             pinfo = self.nvect.PartInfo(i)
+
             if abs(pinfo.fPID) == 14:
-                print("neutrino", np.sqrt(pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2))
-                neutrino_e = np.sqrt(pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2)
-            if pinfo.fIsAlive == 1: 
+                neutrino_e = np.sqrt(
+                    pinfo.fP.X() ** 2 + pinfo.fP.Y() ** 2 + pinfo.fP.Z() ** 2
+                )
 
+            if pinfo.fIsAlive == 1:
+                p2 = pinfo.fP.X() ** 2 + pinfo.fP.Y() ** 2 + pinfo.fP.Z() ** 2
+                E_part = 0.0
+                pid = pinfo.fPID
+
+                if abs(pid) == 13: 
+                    E_part = p2**0.5
+                elif pid == 22:  
+                    E_part = p2**0.5
+                elif pid == 111:  
+                    E_part = (p2 + 134.98**2) ** 0.5
+                elif abs(pid) == 211: 
+                    E_part = (p2 + 139.57**2) ** 0.5 
+                elif pid == 2212:  
+                    E_part = (p2 + 938.27**2) ** 0.5 - 938.27
+                elif pid == 1000010020 and visible:  # Deuteron
+                    E_part = (p2 + 1875.61**2) ** 0.5 - 1875.61
+                elif pid == 1000010030 and visible:  # Triton
+                    E_part = (p2 + 2808.92**2) ** 0.5 - 2808.92
+                elif pid == 1000020040 and visible:  # Alpha
+                    E_part = (p2 + 3727.38**2) ** 0.5 - 3727.38
+                elif pid == 1000020030 and visible:  # Helium-3
+                    E_part = (p2 + 2808.39**2) ** 0.5 - 2808.39
+
+                if E_part > energy_thresh:
+                    E_reco += E_part
+
+
+        return (E_reco - neutrino_e) / neutrino_e
+
+    def E_avail(self, visible=True, energy_thresh=0.0):
+        E_reco = 0.0
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            if pinfo.fIsAlive == 1:
                 p2 = pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2
+                pid = abs(pinfo.fPID) if abs(pinfo.fPID) == 211 else pinfo.fPID
+                E = None
 
-                if abs(pinfo.fPID) == 13:
-                    print("lepton", p2**0.5)
-                    E_reco += p2**0.5
-                
-                if pinfo.fPID == 22:
-                    E_reco += p2**0.5 
-                    
-                elif pinfo.fPID == 111:
-                    E_reco += (p2 + 134.98**2)**0.5
-                    
-                elif abs(pinfo.fPID) == 211:
-                    E_reco += (p2 + 139.57**2)**0.5 - 139.57
-                    
-                elif pinfo.fPID == 2212:
-                    E_reco += (p2 + 938.27**2)**0.5 - 938.27
-                    print("proton", (p2 + 938.27**2)**0.5 - 938.27)
-                
-                elif pinfo.fPID == 2112 and visible == True and neutron == True:
-                    E_reco +=(p2 + 939.57**2)**0.5 - 939.57
-                    
-                elif pinfo.fPID == 1000010020 and visible == True:
-                    E_reco +=(p2 + 1875.61**2)**0.5 - 1875.61
-                    
-                elif pinfo.fPID == 1000010030 and visible == True:
-                    E_reco += (p2 + 2808.92**2)**0.5 - 2808.92
-                    
-                elif pinfo.fPID == 1000020040 and visible == True:
-                    E_reco +=(p2 + 3727.38**2)**0.5 - 3727.38 
+                # Photons: total energy
+                if pid == 22:
+                    E = p2**0.5
 
-                elif pinfo.fPID == 1000020030 and visible == True:
-                    E_reco += (p2 + 2808.39**2)**0.5 - 2808.39 
-        print("E_reco", E_reco)
-        return (E_reco - neutrino_e)/neutrino_e
+                # Neutral pions: total energy
+                elif pid == 111:
+                    E = (p2 + 134.98**2)**0.5
+
+                # Charged pions: kinetic energy
+                elif pid == 211:
+                    E = (p2 + 139.57**2)**0.5 - 139.57
+
+                # Protons: kinetic energy
+                elif pid == 2212:
+                    E = (p2 + 938.27**2)**0.5 - 938.27
+
+                # Nuclei: kinetic energy (if visible=True)
+                elif pid == 1000010020 and visible:
+                    E = (p2 + 1875.61**2)**0.5 - 1875.61
+
+                elif pid == 1000010030 and visible:
+                    E = (p2 + 2808.92**2)**0.5 - 2808.92
+
+                elif pid == 1000020040 and visible:
+                    E = (p2 + 3727.38**2)**0.5 - 3727.38
+
+                elif pid == 1000020030 and visible:
+                    E = (p2 + 2808.39**2)**0.5 - 2808.39
+
+                # Apply threshold check once across all valid particles
+                if E is not None and E >= energy_thresh:
+                    E_reco += E
+
+        return E_reco
+
+
+    def E_reco_qe_bias(self, M_n=939.57, M_p=938.27, m_mu=105.66, carbon= False):
+        neutrino_e = None
+        if carbon == True:
+            E_b = 25.0
+        if carbon == False:
+            E_b = 27.0
+        
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            
+            # Extract true incoming neutrino energy (PID 14 = numu)
+            if abs(pinfo.fPID) == 14:
+                neutrino_e = np.sqrt(pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2)
+
+            # Final-state muon kinematic variables (PID 13 = mu-)
+            if pinfo.fIsAlive == 1 and abs(pinfo.fPID) == 13:
+                px = pinfo.fP.X()
+                py = pinfo.fP.Y()
+                pz = pinfo.fP.Z()
+
+                p_mag = np.sqrt(px**2 + py**2 + pz**2)
+                E_mu = np.sqrt(p_mag**2 + m_mu**2)
+                cos_theta = pz / p_mag 
+
+                # Target neutron effective mass shifted by binding energy E_B
+                M_n_eff = M_n - E_b
+
+                # CCQE Kinematic Reconstruction Equation
+                num = M_p**2 - (M_n_eff)**2 - m_mu**2 + 2*M_n_eff*E_mu 
+                denom = 2*(M_n_eff - E_mu + pz)
+
+                E_rec = num / denom
+                
+                # Returns fractional bias relative to true energy: (E_rec - E_true) / E_true
+                print(E_rec, neutrino_e)
+                print((E_rec - neutrino_e) / neutrino_e)
+                return (E_rec - neutrino_e) / neutrino_e
+
+
+    def E_invis(self):
+        E_invis = 0.0
+        for i in range(self.nopart):
+            pinfo = self.nvect.PartInfo(i)
+            if pinfo.fIsAlive == 1: 
+                p2 = pinfo.fP.X()**2 + pinfo.fP.Y()**2 + pinfo.fP.Z()**2
+                
+                if pinfo.fPID == 2112:
+                    E_invis +=(p2 + 939.57**2)**0.5 - 939.57
+                    
+                elif pinfo.fPID == 1000010020 :
+                    E_invis +=(p2 + 1875.61**2)**0.5 - 1875.61
+                    
+                elif pinfo.fPID == 1000010030:
+                    E_invis += (p2 + 2808.92**2)**0.5 - 2808.92
+                    
+                elif pinfo.fPID == 1000020040:
+                    E_invis +=(p2 + 3727.38**2)**0.5 - 3727.38 
+
+                elif pinfo.fPID == 1000020030:
+                    E_invis += (p2 + 2808.39**2)**0.5 - 2808.39 
+
+        return (E_invis)
 
 
 
@@ -1559,7 +1706,6 @@ class nvect_reader:
             return muon_E, neutron_count
         else:
             return None,None
-
 
 
 

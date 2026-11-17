@@ -16,6 +16,8 @@ from paper_plots import *
 from deex_functions import *
 from nocasc_pi_ana import *
 from excitation_plots import *
+from e_reco_comps import *
+from transparency_neutcas import *
 import numpy as np
 from array import array
 import sys 
@@ -46,8 +48,9 @@ def reader(filename, evts=5000000):
         nvect_class = nvect_reader(nvect)
         
         string_val = nvect_class.Print() 
-        print(nvect_class.excitation_E_pion())
-        print(nvect_class.particles())
+        print(nvect_class.excitation_E_CCQE())
+        #print(nvect_class.excitation_E_pion())
+        #print(nvect_class.particles())
         channel.append(string_val)
 
     file = ROOT.TFile("channel_{}.root".format(filename_chunk),"RECREATE")
@@ -63,7 +66,34 @@ def reader(filename, evts=5000000):
 
     hist2.Write()
     file.Close()
- 
+
+
+def src_count(filename, evts):
+
+    filename_chunk = filename.split(".")[0].split("out_")[1]
+
+    f = ROOT.TFile(filename)
+    t = f.Get("neuttree")   
+    SRC_count = 0
+    total_count = 0
+    for i,event in enumerate(t):
+        if i == evts:
+            break
+        
+        nvect = event.vectorbranch
+        nvect_class = nvect_reader(nvect)
+        
+        if nvect_class.eventType == EventType.SRC:
+            SRC_count +=1
+            total_count +=1
+        elif nvect_class.eventType == EventType.MF:
+            total_count += 1
+
+        
+    print(SRC_count/total_count)    
+
+
+
 def excitation_energy(filename):
     filename_chunk = filename.split(".")[0].split("out_")[1]
 
@@ -279,7 +309,7 @@ def main():
         elif function_to_run == "spectral_function":
             for file in input_files:
                 for add_file in additional_files:
-                    spectral_function2d(file, additional_files, name = "specfunc")
+                    spectral_function2d(file, additional_files, name,n_events)
         
         elif function_to_run == "src":
             for file in input_files:
@@ -325,7 +355,8 @@ def main():
 
         elif function_to_run == "deex_multiplicity":
             for file in input_files:
-                deex_multiplicity(file, name, additional_files)
+                deex_multiplicity2(file, name, n_events,additional_files)
+                
         elif function_to_run == "nocasc_pi":
             for file in input_files:
                 nocasc_pi_ana(file, name, additional_files)
@@ -364,6 +395,26 @@ def main():
         elif function_to_run == "total_mom_breakdown":
             for file in input_files:
                 ccqe_individual_particle_momentum_plots(file, name, additional_files)
+
+        elif function_to_run == "E_reco_E_avail":
+            for file in input_files:
+                e_reco_comps(file, name, n_events ,additional_files)
+
+        elif function_to_run == "E_reco_threshold":
+            for file in input_files:
+                e_reco_threshold_comps(file, name, n_events ,additional_files)
+              
+        elif function_to_run == "transparency_neutcas":
+            transparency_calc(name)     
+
+        elif function_to_run == "src_count":
+            src_count(file,n_events)
+
+        elif function_to_run == "SRC_MF_excitation":
+            src_mf_excitation_E(file, name, n_events, additional_files)
+
+        elif function_to_run == "Ex_diff":
+            excitation_energy_differences(file, name, n_events, additional_files)
               
 
         else:

@@ -39,6 +39,9 @@ ROOT.TGaxis.SetMaxDigits(3)
 ROOT.gStyle.SetLabelSize(5, "XYZ")        # Axis tick labels
 ROOT.gStyle.SetTitleSize(5, "XYZ")
 
+ROOT.gStyle.SetPadTickX(1)
+ROOT.gStyle.SetPadTickY(1)
+
 ROOT.gStyle.SetStatFont(font_id)
 ROOT.gStyle.SetPadGridX(True)
 ROOT.gStyle.SetPadGridY(True)
@@ -54,7 +57,7 @@ ROOT.gStyle.SetOptStat(0)
 
 
 
-def deex_multiplicity(filename, name, filename_list=None):
+def deex_multiplicity(filename, name, no_events = 500000, filename_list=None):
     if filename_list is None:
         filename_list = [filename]
     else:
@@ -80,16 +83,16 @@ def deex_multiplicity(filename, name, filename_list=None):
        # -211: "pi-",
        # 111:"pi0"
     }
-    
+    """
     labels= ["NEUT Cascade", "INCL + ABLA"]
     colors = [ROOT.kAzure,ROOT.kBlue]
     styles = [ 1,1,1 ]
-    
+    """
 
 
-    #labels = ["SF", "Nieves LFG"]
-    #colors = [ROOT.kBlue, ROOT.kOrange + 7, ROOT.kMagenta, ROOT.kRed]
-    #styles = [1, 1, 8, 2, 1]
+    labels = ["SF", "ED-RMF", "Nieves LFG"]
+    colors = [ROOT.kBlue, ROOT.kRed, ROOT.kOrange + 7]
+    styles = [1, 1, 1, 2, 1]
 
     """
     labels = ["NEUT Cascade - NuWro SRC", 
@@ -128,14 +131,16 @@ def deex_multiplicity(filename, name, filename_list=None):
             h2_energy.GetXaxis().SetBinLabel(i, label)
 
         for i, event in enumerate(t):
-            if i == 500000:
+            if i % 100000 == 0:
+                print("event ", i, " of ", no_events)
+            if i == no_events:
                 break
             nvect = event.vectorbranch
             nvect_class = nvect_reader(nvect)
 
             if nvect_class.eventType in (EventType.MF, EventType.SRC):
                 counter += 1
-                particles, energies = nvect_class.particles()
+                particles, energies,flags  = nvect_class.particles(flags = True)
 
                 for particle, p_energy in zip(particles, energies):
                     if particle in pdg_map:
@@ -269,6 +274,261 @@ def deex_multiplicity(filename, name, filename_list=None):
     out_file.cd()
     canvas_mult.Write()
 
+    for c2 in canvases_2d:
+        c2.Write()
+
+    out_file.Close()
+
+    return canvas_mult, canvases_2d
+
+
+def deex_multiplicity2(filename, name, no_events=500000, filename_list=None):
+    if filename_list is None:
+        filename_list = [filename]
+    else:
+        filename_list = list(filename_list)
+        if filename not in filename_list:
+            filename_list.insert(0, filename)
+
+    out_name = name[0] if isinstance(name, (list, tuple)) else name
+    out_file = ROOT.TFile(f"multiplicity_{out_name}_deex2.root", "RECREATE")
+    latex_font = 132
+
+    pdg_map = {
+        2212: "p",
+        2112: "n",
+        1000010020: "D",
+        1000010030: "T",
+        1000020040: "#alpha",
+    }
+
+    #labels = ["SF", "ED-RMF", "Nieves LFG"]
+    #colors = [ROOT.kBlue, ROOT.kRed, ROOT.kOrange + 7]
+    #styles = [1, 1, 1, 2, 1]
+
+    #labels = ["NEUT Cascade", "INCL + ABLA"]
+    #labels = ["SF", "SF*"]
+    #colors = [ROOT.kMagenta, ROOT.kBlue]
+    #colors = [ROOT.kAzure, ROOT.kBlue]
+    #styles = [1, 1, 1, 2, 1]
+
+
+    labels =      ["NEUT Cascade - NuWro SRC", 
+                   "NEUT Cascade - NEUT SRC", 
+                   "INCL + ABLA  - NuWro SRC",
+                   "INCL + ABLA  - NEUT SRC",
+                   ]
+
+    colors = [ ROOT.kRed, ROOT.kBlue, ROOT.kRed, ROOT.kBlue ]
+    styles = [4,4,1,1]
+
+    histograms_top = []
+    histograms_bot = []
+    canvases_2d = []
+    histograms_2d = []
+
+    for idx, fname in enumerate(filename_list):
+        fname_chunk = fname.split(".")[0].split("out_")[-1]
+
+        f_in = ROOT.TFile(fname)
+        t = f_in.Get("neuttree")
+
+        particle_counts_top = {label: 0 for label in pdg_map.values()}
+        particle_counts_bot = {label: 0 for label in pdg_map.values()}
+        counter = 0
+        nbins = len(pdg_map)
+
+        h2_energy = ROOT.TH2D(
+            f"h2_energy_{fname_chunk}",
+            f"Energy vs Particle Species ({fname_chunk});Particle Species;Energy (GeV)",
+            nbins, 0, nbins,
+            200, 0.0, 750
+        )
+        h2_energy.SetStats(0)
+
+        for i, label in enumerate(pdg_map.values(), start=1):
+            h2_energy.GetXaxis().SetBinLabel(i, label)
+
+        for i, event in enumerate(t):
+            if i % 100000 == 0:
+                print("event ", i, " of ", no_events)
+            if i == no_events:
+                break
+            nvect = event.vectorbranch
+            nvect_class = nvect_reader(nvect)
+
+            if nvect_class.eventType in (EventType.MF, EventType.SRC):
+                counter += 1
+                particles, energies, flags = nvect_class.particles(flag=True)
+
+                for particle, p_energy, flag in zip(particles, energies, flags):
+                    if particle in pdg_map:
+                        label = pdg_map[particle]
+                        h2_energy.Fill(label, p_energy, 1.0)
+                        
+                        if flag in (2, 8, 0):
+                            particle_counts_top[label] += 1
+                        elif flag == 10:
+                            particle_counts_bot[label] += 1
+
+        f_in.Close()
+
+        if counter == 0:
+            print(f"Warning: No events processed for {fname}")
+            continue
+
+        h_mult_top = ROOT.TH1D(
+            f"h_mult_top_{fname_chunk}",
+            "Flag = 2 or 8;Particle Species;Average Multiplicity / Event",
+            nbins, 0, nbins
+        )
+
+        h_mult_bot = ROOT.TH1D(
+            f"h_mult_bot_{fname_chunk}",
+            "Flag = 10;Particle Species;Average Multiplicity / Event",
+            nbins, 0, nbins
+        )
+
+        for i, label in enumerate(pdg_map.values(), start=1):
+            h_mult_top.GetXaxis().SetBinLabel(i, label)
+            h_mult_top.SetBinContent(i, particle_counts_top[label] / counter)
+
+            h_mult_bot.GetXaxis().SetBinLabel(i, label)
+            h_mult_bot.SetBinContent(i, particle_counts_bot[label] / counter)
+
+        color = colors[idx % len(colors)]
+        style = styles[idx % len(styles)]
+
+        for h in (h_mult_top, h_mult_bot):
+            h.SetLineColor(color)
+            h.SetLineStyle(style)
+            h.SetLineWidth(4)
+            h.GetXaxis().SetTitleFont(latex_font)
+            h.GetXaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleFont(latex_font)
+            h.GetYaxis().SetLabelFont(latex_font)
+            h.GetYaxis().SetTitleSize(0.05)
+            h.GetYaxis().SetLabelSize(0.05)
+            h.GetYaxis().SetTitleOffset(1.1)
+
+        # Remove X-axis text on top pad to prevent overlapping into bottom pad
+        h_mult_top.GetXaxis().SetLabelSize(0)
+        h_mult_top.GetXaxis().SetTitleSize(0)
+
+        # Style bottom plot X-axis
+        h_mult_bot.GetXaxis().SetTitleSize(0.06)
+        h_mult_bot.GetXaxis().SetLabelSize(0.07)
+
+        histograms_top.append((fname_chunk, h_mult_top))
+        histograms_bot.append((fname_chunk, h_mult_bot))
+
+        c2 = ROOT.TCanvas(f"c2_energy_{fname_chunk}", f"Energy - {fname_chunk}", 800, 600)
+        c2.SetRightMargin(0.15)
+        h2_energy.Draw("COLZ")
+        c2.Update()
+
+        canvases_2d.append(c2)
+        histograms_2d.append(h2_energy)
+
+    if not histograms_top:
+        print("No valid ROOT objects created.")
+        out_file.Close()
+        return
+
+    canvas_mult = ROOT.TCanvas("c_multiplicity_summary_2pad", "Particle Multiplicity Comparison", 650, 800)
+
+    # Pad split at 0.523 equalizes the active plot frame heights between top and bottom pads
+    pad_top = ROOT.TPad("pad_top", "Top Pad - Flag 2 or 8", 0.0, 0.523, 1.0, 1.0)
+    pad_bot = ROOT.TPad("pad_bot", "Bottom Pad - Flag 10", 0.0, 0.0, 1.0, 0.523)
+
+    pad_top.SetLeftMargin(0.14)
+    pad_top.SetRightMargin(0.08)
+    pad_top.SetTopMargin(0.10)
+    pad_top.SetBottomMargin(0.0)
+    pad_top.SetGridy()
+    pad_top.Draw()
+
+    pad_bot.SetLeftMargin(0.14)
+    pad_bot.SetRightMargin(0.08)
+    pad_bot.SetTopMargin(0.0)
+    pad_bot.SetBottomMargin(0.18)
+    pad_bot.SetGridy()
+    pad_bot.Draw()
+
+    # Draw Top Pad (Flag 2 or 8)
+    pad_top.cd()
+    
+    # 25% larger top legend coordinates and text size
+    legend_top = ROOT.TLegend(0.50, 0.52, 0.72, 0.88)
+    legend_top.SetNColumns(1)
+    legend_top.SetTextFont(latex_font)
+    legend_top.SetBorderSize(0)
+    legend_top.SetFillStyle(1001)
+    legend_top.SetFillColor(ROOT.kWhite)
+    legend_top.SetTextSize(0.05)  # 25% increase from 0.04
+
+    max_top = max(h.GetMaximum() for _, h in histograms_top) * 1.25 or 1.0
+
+    for idx, (fname_chunk, h_mult) in enumerate(histograms_top):
+        # Shift Y-axis minimum slightly negative to raise zero tick and label inside the frame
+        h_mult.SetMinimum(-0.04 * max_top)
+        if idx == 0:
+            h_mult.SetMaximum(1.5)
+            h_mult.SetMinimum(0.0)
+            h_mult.GetYaxis().ChangeLabel(1, -1, -1, 31)
+            h_mult.GetYaxis().SetNdivisions(6, False)
+            h_mult.GetXaxis().CenterTitle(True)
+            h_mult.GetYaxis().CenterTitle(True)
+            h_mult.Draw("HIST")
+        else:
+            h_mult.Draw("HIST SAME")
+
+        label_text = labels[idx] if idx < len(labels) else fname_chunk
+        legend_top.AddEntry(h_mult, label_text, "l")
+
+    legend_top.Draw()
+
+    txt_top = ROOT.TLatex()
+    txt_top.SetNDC()
+    txt_top.SetTextFont(latex_font)
+    txt_top.SetTextSize(0.05)
+    txt_top.DrawLatex(0.15, 0.85, "Cascade / Transparent")
+
+    pad_top.Update()
+
+    # Draw Bottom Pad (Flag 10)
+    pad_bot.cd()
+
+    max_bot = max(h.GetMaximum() for _, h in histograms_bot) * 1.25 or 1.0
+
+    for idx, (fname_chunk, h_mult) in enumerate(histograms_bot):
+        if idx == 0:
+            h_mult.SetMaximum(max_bot)
+            h_mult.GetXaxis().CenterTitle(True)
+            h_mult.GetYaxis().CenterTitle(True)
+            h_mult.Draw("HIST")
+        else:
+            h_mult.Draw("HIST SAME")
+
+    txt_bot = ROOT.TLatex()
+    txt_bot.SetNDC()
+    txt_bot.SetTextFont(latex_font)
+    txt_bot.SetTextSize(0.045)
+    txt_bot.DrawLatex(0.15, 0.89, "Deexcitation")
+
+    pad_bot.Update()
+
+    output_dir = "deex_multiplicity"
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_pdf = os.path.join(output_dir, f"multiplicity_{out_name}_deex2.pdf")
+
+    canvas_mult.cd()
+    canvas_mult.Update()
+    canvas_mult.Print(output_pdf)
+
+    out_file.cd()
+    canvas_mult.Write()
     for c2 in canvases_2d:
         c2.Write()
 
