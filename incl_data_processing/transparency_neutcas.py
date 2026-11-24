@@ -240,9 +240,10 @@ def transparency_calc(name):
     directory = Path("./Transparency")
 
     samples = [
-        ("NEUT_pb1",   "PB = 1",   ROOT.kRed , 20),  # 20 = Filled Circle
-        ("NEUT_pb0.5", "PB = 0.5", ROOT.kBlue , 21),  # 21 = Filled Square
-        ("NEUT_pb0",   "PB = 0",   ROOT.kAzure , 23),  # 21 = Filled Square
+
+        ("NEUT_carbon",   "NEUT cascade",   ROOT.kAzure , 23),  # 21 = Filled Square
+        ("INCL_carbon",  "INCL+ABLA", ROOT.kBlue , 21),  # 21 = Filled Square
+
     ]
 
     mg = ROOT.TMultiGraph()
@@ -265,6 +266,7 @@ def transparency_calc(name):
                 ratio = transparency_ratio(str(file))
                 numbers.append(val*1000)
                 trans_ratio.append(ratio)
+                print(trans_ratio)
 
         if not numbers:
             print(f"Warning: No matching files found for pattern prefix '{prefix}'!")

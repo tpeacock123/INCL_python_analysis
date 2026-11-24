@@ -458,6 +458,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     hist_list_proton = []
     hist_list_mu = []
     hist_list_ex = []
+    hist_list_expostfsi = []
     hist_list_avail = []
     hist_list_nop_avail = []
     hist_list_non_incl_avail = [] 
@@ -474,9 +475,11 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     hist_list_total_e = []  # ADDED: Total energy list
     
     # Momentum lists
+    hist_list_momp_tot  = []
     hist_list_momp_casc = [] 
     hist_list_momp_deex = [] 
-    hist_list_momgamma = []
+    hist_list_momgamma  = []
+    hist_list_momn_tot  = []
     hist_list_momn_casc = [] 
     hist_list_momn_deex = [] 
     hist_list_momd = []
@@ -529,8 +532,9 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
             ]
     """
 
-    legend_name = ["PB = 1", "PB = 0.5","PB = 0"]
-    styles = [ (ROOT.kRed, 1), (ROOT.kBlue, 1), (ROOT.kAzure, 1) ]
+    legend_name = ["PB Hybrid = 1", "PB Hybrid = 0","PB on", "PB off"]
+    styles = [ (ROOT.kRed, 1), (ROOT.kBlue, 1), (ROOT.kRed, 2), (ROOT.kBlue, 2)]
+
 
     """
     legend_name = ["NEUT Cascade - NuWro SRC", 
@@ -545,6 +549,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 (ROOT.kBlue, 1),
             ]
     """
+
 
     """
     legend_name = ["NEUT Cascade", "INCL + ABLA"
@@ -590,15 +595,21 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     """
     """
     legend_name = ["SF*", 
-                   "SF",
+                   "ED-RMF",
                    "Nieves LFG", 
                    ]
     styles = [
                 (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
-                (ROOT.kRed,1),
-                #(ROOT.kBlue, 4),  # Modified to Petroff Grape
+                (ROOT.kRed, 1),  # Modified to Petroff Grape
                 (ROOT.kOrange + 7, 1)  # Modified to Petroff Red
     ]
+    """
+    """
+    legend_name = ["tom incl interface", "main"]
+    styles = [
+                    (ROOT.kBlue, 1),  # Uses index 2 (modified to Petroff Blue)
+                    (ROOT.kRed, 1), 
+     ] # Modified to Petroff Grape
     """
 
     count = 0 
@@ -620,9 +631,14 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         h_mu.Sumw2()
         h_mu.SetTitle(";P_{#mu} [MeV/c]; [Muons / Evt / 30 MeV/c]")
 
-        h_ex = ROOT.TH1D(f"h_excitation_E_{filename_chunk}", "Excitation Energy Distribution", 104, -2, 102)
+        h_ex = ROOT.TH1D(f"h_excitation_E_{filename_chunk}", "Excitation Energy Distribution", 200, -20, 80)
         h_ex.Sumw2()
-        h_ex.SetTitle(";E_{x} [MeV]; Probability density [MeV^{-1}]")
+        h_ex.SetTitle(";E^{*}_{init} [MeV]; Probability density [MeV^{-1}]")
+
+        hpostfsi_ex = ROOT.TH1D(f"h_excitation_Epostfsi_{filename_chunk}", "Excitation Energy post fsi Distribution", 200, -20, 80)
+        hpostfsi_ex.Sumw2()
+        hpostfsi_ex.SetTitle(";E^{*}_{postfsi} [MeV]; Probability density [MeV^{-1}]")
+    
 
         # --- Energy Histograms ---
         h_eavail = ROOT.TH1D(f"h_avail_E_{filename_chunk}", "Hadronic Available Energy Distribution", 40, 0.0, 400)
@@ -655,6 +671,10 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         h_dat.SetTitle(";#delta#alpha_{T} [deg]; [#delta#alpha_{T} / Evt / 5 deg]")
 
         # --- Particle Momentum Distributions ---
+        h_momp_tot = ROOT.TH1D(f"h_momp_tot_{filename_chunk}", "Proton Momentum Distribution0", 50, 0.0, 1000)
+        h_momp_tot.Sumw2()
+        h_momp_tot.SetTitle(";p_{p_{all}} [MeV/c]; [Protons / Evt / 20 MeV/c]")
+        
         h_momp_casc = ROOT.TH1D(f"h_momp_casc_{filename_chunk}", "Proton Momentum Distribution1", 50, 0.0, 1000)
         h_momp_casc.Sumw2()
         h_momp_casc.SetTitle(";p_{p_{all}} [MeV/c]; [Protons / Evt / 20 MeV/c]")
@@ -667,6 +687,10 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         h_momgamma.Sumw2()
         h_momgamma.SetTitle(";P_{#gamma}^{Total} [MeV/c]; [Photons / Evt / 0.3 MeV/c]")
 
+        h_momn_tot = ROOT.TH1D(f"h_momn_tot_{filename_chunk}", "neutron Momentum Distribution0", 50, 0.0, 1000)
+        h_momn_tot.Sumw2()
+        h_momn_tot.SetTitle(";p_{n_{all}} [MeV/c]; [Neutron / Evt / 20 MeV/c]")
+        
         h_momn_casc = ROOT.TH1D(f"h_momn_casc_{filename_chunk}", "Neutron Momentum Distribution1", 50, 0.0, 1000)
         h_momn_casc.Sumw2()
         h_momn_casc.SetTitle(";p_{n_{all}} [MeV/c]; [Neutrons / Evt / 20 MeV/c]")
@@ -675,23 +699,23 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         h_momn_deex.Sumw2()
         h_momn_deex.SetTitle(";p_{n_{all}} [MeV/c]; [Neutrons / Evt / 20 MeV/c]")
 
-        h_momd = ROOT.TH1D(f"h_momd_{filename_chunk}", "Total Deuteron Momentum Distribution", 100, 0.0, 800)
+        h_momd = ROOT.TH1D(f"h_momd_{filename_chunk}", "Total Deuteron Momentum Distribution", 50, 0.0, 800)
         h_momd.Sumw2()
         h_momd.SetTitle(";P_{d}^{Total} [MeV/c]; [Deuterons / Evt / 8 MeV/c]")
 
-        h_momt = ROOT.TH1D(f"h_momt_{filename_chunk}", "Total Triton Momentum Distribution", 100, 0.0, 800)
+        h_momt = ROOT.TH1D(f"h_momt_{filename_chunk}", "Total Triton Momentum Distribution", 50, 0.0, 800)
         h_momt.Sumw2()
         h_momt.SetTitle(";P_{t}^{Total} [MeV/c]; [Tritons / Evt / 8 MeV/c]")
 
-        h_momhe3 = ROOT.TH1D(f"h_momhe3_{filename_chunk}", "Total Helium-3 Momentum Distribution", 100, 0.0, 800)
+        h_momhe3 = ROOT.TH1D(f"h_momhe3_{filename_chunk}", "Total Helium-3 Momentum Distribution", 50, 0.0, 800)
         h_momhe3.Sumw2()
         h_momhe3.SetTitle(";P_{^{3}He}^{Total} [MeV/c]; [Helium-3 / Evt / 8 MeV/c]")
 
-        h_moma_casc = ROOT.TH1D(f"h_momacasc_{filename_chunk}", "Total Alpha Momentum Distribution", 100, 0.0, 1000)
+        h_moma_casc = ROOT.TH1D(f"h_momacasc_{filename_chunk}", "Total Alpha Momentum Distribution", 50, 0.0, 1000)
         h_moma_casc.Sumw2()
         h_moma_casc.SetTitle(";p_{#alpha} [MeV/c]; [Alphas / Evt / 10 MeV/c]")
 
-        h_moma_deex = ROOT.TH1D(f"h_momadeex_{filename_chunk}", "Total Alpha Momentum Distribution", 100, 0.0, 1000)
+        h_moma_deex = ROOT.TH1D(f"h_momadeex_{filename_chunk}", "Total Alpha Momentum Distribution", 50, 0.0, 1000)
         h_moma_deex.Sumw2()
         h_moma_deex.SetTitle(";p_{#alpha} [MeV/c]; [Alphas / Evt / 10 MeV/c]")
 
@@ -742,6 +766,8 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         h_mult_pipm.SetTitle(";N_{#pi^{#pm}};#frac{N_{events}}{N_{total}}")
 
         event_no = 0
+        EVENT_COUNT = 0
+        SRC_COUNT = 0
         for event in t:
             nvect = event.vectorbranch
             nvect_class = nvect_reader(nvect) 
@@ -757,20 +783,28 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 
                 h_dpt.Fill(dpt)
                 h_dat.Fill(dat)
+                postFSI_ex = nvect_class.post_casc_E_star()
+                if not (postFSI_ex ==  None): 
+                
+                    hpostfsi_ex.Fill(nvect_class.post_casc_E_star())
 
                 if nvect_class.intChannel == intChannel_CCQE.other:
                     print(nvect_class.eventType.name)
 
                 if nvect_class.eventType == EventType.MF:
-                    if nvect_class.excitation_E_CCQE() < 0.0:
-                        h_ex.Fill(0.0)
-                    else:
-                        h_ex.Fill(nvect_class.excitation_E_CCQE())
+                    EVENT_COUNT += 1
+                #    if nvect_class.excitation_E_CCQE(carbon=True) < 0.0:
+                #        h_ex.Fill(0.0)
+                #    else:
+                    h_ex.Fill(nvect_class.excitation_E_CCQE(carbon=True))
                 elif nvect_class.eventType == EventType.SRC:
-                    if nvect_class.excitation_E_SRC() < 0.0:
-                        h_ex.Fill(0.0)
-                    else:
-                        h_ex.Fill(nvect_class.excitation_E_SRC())
+                    EVENT_COUNT += 1
+                    SRC_COUNT += 1
+                    #if nvect_class.excitation_E_SRC(carbon=True) < 0.0:
+                    #    h_ex.Fill(0.0)
+                    #else:
+                    h_ex.Fill(nvect_class.excitation_E_SRC(carbon=True))
+               
 
                # Missing_energy_kdar, E_Miss = nvect_class.Missing_energy_kdar2()
                # if Missing_energy_kdar:
@@ -780,7 +814,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
 
                 eavail = 0
                 for particle, energy in zip(particles, energies):
-                    if particle == 2112 and particle == 13:
+                    if particle == 2112 or particle == 13:
                         continue
                     eavail += energy
 
@@ -792,10 +826,11 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 non_INCL_eavail = 0 
                 invisible_energy = 0
                 total_E = 0  # ADDED: Initialized per event
-                
+                total_proton_tot_mom = []
                 total_proton_cascade_mom = []
                 total_proton_deex_mom = []
                 total_gamma_mom = 0
+                total_neutron_tot_mom  = []
                 total_neutron_casc_mom = []
                 total_neutron_deex_mom = []
                 total_deuteron_mom = 0
@@ -818,7 +853,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 
                 for particle, energy,flag in zip(particles, energies,flags):
                     if  particle == 13:
-                        muon_mom = energy
+                        muon_mom = np.sqrt((energy+139.27)**2 - 139.27)
                     total_E += energy
                     if particle != 2212 and particle != 2112:
                         non_proton_evail += energy
@@ -832,6 +867,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                     
                     # Convert Kinetic Energy to Momentum (MeV/c)
                     if particle == 2212: # Proton
+                        total_proton_tot_mom.append(np.sqrt((energy+938.27)**2 - 938.27**2))
                         if flag == 8:
                             total_proton_cascade_mom.append(np.sqrt((energy+938.27)**2 - 938.27**2))
                         elif flag == 10:
@@ -843,8 +879,8 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                         mult_gamma += 1
 
                     elif particle == 2112: # Neutron
-                        
-                        if flag == 8:
+                        total_neutron_tot_mom.append(np.sqrt((energy+939.57)**2 - 939.57**2))
+                        if flag == 8 or flag == 0:
                             total_neutron_casc_mom.append(np.sqrt((energy+939.57)**2 - 939.57**2))
                         elif flag == 10:
                             total_neutron_deex_mom.append(np.sqrt((energy+939.57)**2 - 939.57**2))
@@ -881,6 +917,10 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 if total_E > 0: h_total_e.Fill(total_E)  # ADDED: Fill total energy
 
                 # Fill momentum histograms
+                if len(total_proton_tot_mom) > 0: 
+                    for proton in total_proton_tot_mom:
+                        h_momp_tot.Fill(proton)
+
                 if len(total_proton_cascade_mom) > 0: 
                     for proton in total_proton_cascade_mom:
                         h_momp_casc.Fill(proton)
@@ -888,6 +928,10 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 if len(total_proton_deex_mom) > 0: 
                     for proton in total_proton_deex_mom:
                         h_momp_deex.Fill(proton)
+
+                if len(total_neutron_tot_mom) > 0: 
+                    for neutron in total_neutron_tot_mom:
+                        h_momn_tot.Fill(neutron)
 
                 if len(total_neutron_casc_mom) > 0: 
                     for neutron in total_neutron_casc_mom:
@@ -928,10 +972,12 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 if nvect_class.HMPMom:
                     h_leadin.Fill(nvect_class.HMPMom)
 
+        print(SRC_COUNT/EVENT_COUNT)
         # Set directories
         h_leadin.SetDirectory(0) 
         h_mu.SetDirectory(0)
         h_ex.SetDirectory(0) 
+        hpostfsi_ex.SetDirectory(0)
         h_eavail.SetDirectory(0) 
         h_notpeavail.SetDirectory(0) 
         h_non_incl_avail.SetDirectory(0)
@@ -941,10 +987,11 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
 
         h_dpt.SetDirectory(0)
         h_dat.SetDirectory(0)
-        
+        h_momp_tot.SetDirectory(0)
         h_momp_casc.SetDirectory(0)
         h_momp_deex.SetDirectory(0)
         h_momgamma.SetDirectory(0)
+        h_momn_tot.SetDirectory(0)
         h_momn_casc.SetDirectory(0)
         h_momn_deex.SetDirectory(0)
         h_momd.SetDirectory(0)
@@ -969,6 +1016,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         hist_list_proton.append((filename_chunk, h_leadin))
         hist_list_mu.append((filename_chunk,h_mu))
         hist_list_ex.append((filename_chunk, h_ex))
+        hist_list_expostfsi.append((filename_chunk,hpostfsi_ex))
         hist_list_avail.append((filename_chunk, h_eavail))
         hist_list_nop_avail.append((filename_chunk, h_notpeavail))
         hist_list_non_incl_avail.append((filename_chunk, h_non_incl_avail))
@@ -978,12 +1026,14 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
 
         hist_list_dpt.append((filename_chunk, h_dpt))
         hist_list_dat.append((filename_chunk, h_dat))
-        
+
+        hist_list_momp_tot.append((filename_chunk,   h_momp_tot))        
         hist_list_momp_casc.append((filename_chunk, h_momp_casc))
         hist_list_momp_deex.append((filename_chunk, h_momp_deex))
 
         hist_list_momgamma.append((filename_chunk, h_momgamma))
 
+        hist_list_momn_tot.append((filename_chunk, h_momn_tot))
         hist_list_momn_casc.append((filename_chunk, h_momn_casc))
         hist_list_momn_deex.append((filename_chunk, h_momn_deex))
         hist_list_momd.append((filename_chunk, h_momd))
@@ -1041,6 +1091,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
             #print(event_no)
             #print(h.Integral())
             h.Scale(1/ event_no)
+            pass
             #print(h.Integral())
 
             valid_hists.append((name, h))
@@ -1110,7 +1161,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         ROOT.gPad.SetTickx(1)
         ROOT.gPad.SetTicky(1)
 
-        legend = ROOT.TLegend(0.52, 0.67, 0.86, 0.90)
+        legend = ROOT.TLegend(0.22, 0.67, 0.56, 0.90)
         legend.SetNColumns(1) 
         legend.SetTextFont(latex_font) 
         legend.SetBorderSize(0) 
@@ -1125,6 +1176,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 #print(name, h)
                 #print("Entries:", h.GetEntries())  # Prints raw entry count
                 h.Scale(1 / event_no)
+                pass
                 #print(h.Integral())
                 valid.append((name, h))
             return valid
@@ -1248,6 +1300,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
                 integral = h.Integral()
                 if integral > 0:
                     h.Scale(1/ no_events)
+                    pass
 
             valid_hists.append((name, h))
 
@@ -1328,7 +1381,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
             h_ratio.SetStats(0)
 
             h_ratio.SetTitle("")
-            h_ratio.GetYaxis().SetTitle("Ratio to SF*")
+            h_ratio.GetYaxis().SetTitle("NEUT/INCL")
             h_ratio.GetYaxis().CenterTitle()
             h_ratio.GetYaxis().SetNdivisions(505)
             h_ratio.GetYaxis().SetTitleSize(0.11)
@@ -1600,6 +1653,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     #c1.SaveAs("c_leading_proton.pdf")
     c20,leg20 = draw_canvas("c_leading_mu", hist_list_mu)#, ymax=31000)
     c2, leg2 = draw_canvas("c_excitation_energy", hist_list_ex,log=True)
+    c21, leg21 = draw_canvas("c_excitation_energy_postfsi", hist_list_expostfsi ,log=True)
     c3, leg3 = draw_canvas_with_ratio("c_avail_energy", hist_list_avail)#, ymax=34000)
     c4, leg4 = draw_canvas_with_ratio("c_nop_avail_energy", hist_list_nop_avail)#, ymax=30000)
     c13, leg13 = draw_canvas_with_ratio("c_non_incl_avail_energy", hist_list_non_incl_avail)#, ymax=35000)
@@ -1615,10 +1669,13 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     c16, leg16 = draw_canvas_with_ratio("c_dpt", hist_list_dpt)#, ymax=65000)
     c17, leg17 = draw_canvas_with_ratio("c_dat", hist_list_dat)#, ymax=26000)
 
+
+    c22_mom, leg22_mom = draw_canvas("c_tot_proton_all", hist_list_momp_tot)
     c5_mom, leg5_mom = draw_canvas_casc_deex("c_tot_proton_mom", hist_list_momp_casc, hist_list_momp_deex)
     c5_mult, leg5_mult = draw_canvas("c_tot_proton_mult", hist_list_mult_p)
     
     # Neutron plots (Momentum with ratio, Multiplicity without ratio)
+    c23_mom, leg23_mom = draw_canvas("c_tot_neutron_all", hist_list_momn_tot)
     c7_mom, leg7_mom = draw_canvas_casc_deex("c_tot_neutron_mom", hist_list_momn_casc, hist_list_momn_deex)
     c7_mult, leg7_mult = draw_canvas("c_tot_neutron_mult", hist_list_mult_n)
 
@@ -1636,6 +1693,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
     canvases = [
         (c1, "c_leading_proton"),
         (c2, "c_excitation_energy"),
+        (c21, "c_excitation_energy_postfsi"),
         (c3, "c_avail_energy"),
         (c4, "c_nop_avail_energy"),
         (c13, "c_non_incl_avail_energy"),
@@ -1643,8 +1701,10 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
         (c19, "c_total_energy"),
         (c16, "c_dpt"),
         (c17, "c_dat"),
+        (c22_mom, "c_tot_proton_all"),
         (c5_mom, "c_tot_proton_mom"),
         (c5_mult, "c_tot_proton_mult"),
+        (c23_mom, "c_tot_neutron_all"),
         (c7_mom, "c_tot_neutron_mom"),
         (c7_mult, "c_tot_neutron_mult"),
         (c6, "c_tot_gamma_mom_and_mult"),
@@ -1666,7 +1726,7 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
 
     output_pdf = os.path.join(output_dir, f"paper_plots_{name[0]}.pdf")
 
-    canvases = [c1, c2, c3, c4, c13, c18, c19, c16, c17, c5_mom, c5_mult, c6, c7_mom, c7_mult, c8, c9, c15, c10, c11, c12,c20]
+    canvases = [c1, c2, c21, c3, c4, c13, c18, c19, c16, c17,  c22_mom, c5_mom, c5_mult, c6, c23_mom,c7_mom, c7_mult, c8, c9, c15, c10, c11, c12,c20]
 
     for i, canvas in enumerate(canvases):
         canvas.cd()
@@ -1689,11 +1749,13 @@ def ccqe_combined_plots(filename, name, no_events = 500000, filename_list=None):
 
     c1.Write()
     c2.Write()
+    c21.Write()
     c3.Write()
     c4.Write()
     c5_mult.Write()
     c5_mom.Write()
     c6.Write()
+    c23_mom.Write()
     c7_mult.Write()
     c7_mom.Write()
     c8.Write()
@@ -3084,9 +3146,6 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
         "Triton":   {"pdg": [1000010030], "mass": 2808.92, "color": ROOT.TColor.GetColor("#832db6"), "style": 1},
         "He-3":     {"pdg": [1000020030], "mass": 2808.39, "color": ROOT.TColor.GetColor("#92dadd"), "style": 1},
         "Alpha":    {"pdg": [1000020040], "mass": 3727.38, "color": ROOT.TColor.GetColor("#a96b59"), "style": 1},
-        "Pi0":      {"pdg": [111],        "mass": 134.98,  "color": ROOT.TColor.GetColor("#b8ab6f"), "style": 1},
-        "Pi+":      {"pdg": [211],        "mass": 139.57,  "color": ROOT.TColor.GetColor("#e76300"), "style": 1},
-        "Pi-":      {"pdg": [-211],       "mass": 139.57,  "color": ROOT.TColor.GetColor("#94a4a2"), "style": 1},
     }
 
     # Stack rank definitions (1st highest momentum down to 5th+ highest)
@@ -3229,9 +3288,9 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
             h.GetXaxis().SetNoExponent(True)
             h.GetYaxis().SetTitleFont(latex_font)
             h.GetYaxis().SetLabelFont(latex_font)
-            h.GetYaxis().SetTitleSize(0.06)
-            h.GetYaxis().SetLabelSize(0.05)
-            h.GetYaxis().SetTitleOffset(1.3)
+            h.GetYaxis().SetTitleSize(0.08)
+            h.GetYaxis().SetLabelSize(0.07)
+            h.GetYaxis().SetTitleOffset(0.9)
             h.GetYaxis().CenterTitle(True)
 
             h.SetMaximum(shared_ymax_all)
@@ -3245,9 +3304,9 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
             else:
                 h.GetXaxis().SetTitleFont(latex_font)
                 h.GetXaxis().SetLabelFont(latex_font)
-                h.GetXaxis().SetTitleSize(0.06)
-                h.GetXaxis().SetLabelSize(0.05)
-                h.GetXaxis().SetTitleOffset(1.1)
+                h.GetXaxis().SetTitleSize(0.08)
+                h.GetXaxis().SetLabelSize(0.07)
+                h.GetXaxis().SetTitleOffset(0.8)
                 h.GetXaxis().CenterTitle(True)
                 #h.GetYaxis().ChangeLabel(-1, -1, 0)
 
@@ -3264,7 +3323,7 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
             legend.SetBorderSize(0)
             legend.SetFillStyle(1001)
             legend.SetFillColor(ROOT.kWhite)
-            legend.SetTextSize(0.04)
+            legend.SetTextSize(0.06)
             for name, h in hists_dict.items():
                 legend.AddEntry(h, name, "l")
             legend.Draw()
@@ -3312,9 +3371,9 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
 
             hstack.GetYaxis().SetTitleFont(latex_font)
             hstack.GetYaxis().SetLabelFont(latex_font)
-            hstack.GetYaxis().SetTitleSize(0.06)
-            hstack.GetYaxis().SetLabelSize(0.05)
-            hstack.GetYaxis().SetTitleOffset(1.3)
+            hstack.GetYaxis().SetTitleSize(0.08)
+            hstack.GetYaxis().SetLabelSize(0.07)
+            hstack.GetYaxis().SetTitleOffset(0.9)
             hstack.GetYaxis().CenterTitle(True)
 
             if not is_bottom_pad:
@@ -3326,9 +3385,9 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
                 hstack.GetXaxis().SetNoExponent(True)
                 hstack.GetXaxis().SetTitleFont(latex_font)
                 hstack.GetXaxis().SetLabelFont(latex_font)
-                hstack.GetXaxis().SetTitleSize(0.06)
-                hstack.GetXaxis().SetLabelSize(0.05)
-                hstack.GetXaxis().SetTitleOffset(1.1)
+                hstack.GetXaxis().SetTitleSize(0.08)
+                hstack.GetXaxis().SetLabelSize(0.07)
+                hstack.GetXaxis().SetTitleOffset(0.8)
                 hstack.GetXaxis().CenterTitle(True)
                 hstack.GetYaxis().ChangeLabel(-1, -1, 0)
 
@@ -3339,7 +3398,7 @@ def ccqe_individual_particle_momentum_plots(filename, out_name, filename_list=No
                 legend.SetBorderSize(0)
                 legend.SetFillStyle(1001)
                 legend.SetFillColor(ROOT.kWhite)
-                legend.SetTextSize(0.04)
+                legend.SetTextSize(0.07)
                 for r_idx in reversed(range(MAX_RANKS)):
                     legend.AddEntry(rank_hists_list[r_idx], rank_specs[r_idx]["label"], "f")
                 legend.Draw()

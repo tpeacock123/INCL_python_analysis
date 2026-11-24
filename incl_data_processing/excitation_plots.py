@@ -57,6 +57,7 @@ ROOT.TH1.AddDirectory(False)
 
 
 #ROOT.TGaxis.SetMaxDigits(4)
+#ROOT.TGaxis.SetMaxDigits(4)
 def excitation_plots(filename, name="excitation_combined_plot"):
     pre_FSI    = False
 
@@ -69,6 +70,7 @@ def excitation_plots(filename, name="excitation_combined_plot"):
         "ex_cascade_nucleon": [],
         "ex_cascade_cluster": [],
         "ex_oneProton": [],
+        "ex_protonAbsorption": [],
         "ex_protonPion": [],
         "ex_other": [],
     }
@@ -83,7 +85,6 @@ def excitation_plots(filename, name="excitation_combined_plot"):
 
     colors = [ROOT.kYellow, ROOT.kBlue, ROOT.kRed, ROOT.kOrange + 7, ROOT.kMagenta]
     line_styles = [1, 1, 1, 1, 1]
-
 
     deex_nbins = 82
     deex_xmin = -1
@@ -174,6 +175,10 @@ def excitation_plots(filename, name="excitation_combined_plot"):
                 output_dic["ex_QE_deex"].append(excitation_E)
             elif intChannel == intChannel_CCQE.oneProton:
                 output_dic["ex_oneProton"].append(excitation_E)
+            elif intChannel == intChannel_CCQE.protonAbsorption:
+                output_dic["ex_protonAbsorption"].append(excitation_E)
+                if excitation_E < 10:
+                    nvect_class.Print()
             elif intChannel == intChannel_CCQE.CascadeNucleonNoDeex:
                 output_dic["ex_cascade_nucleon_nodeex"].append(excitation_E)
             elif intChannel == intChannel_CCQE.CascadeClusterNoDeex:
@@ -182,7 +187,7 @@ def excitation_plots(filename, name="excitation_combined_plot"):
                 output_dic["ex_cascade_nucleon"].append(excitation_E)
             elif intChannel == intChannel_CCQE.CascadeClusterDeex:
                 output_dic["ex_cascade_cluster"].append(excitation_E)
-            elif intChannel == intChannel_CCQE.protonPion:
+            elif intChannel == intChannel_CCQE.protonPion or intChannel == intChannel_CCQE.neutronPion:
                 output_dic["ex_protonPion"].append(excitation_E)
             elif intChannel == intChannel_CCQE.other:
                 output_dic["ex_other"].append(excitation_E)
@@ -234,6 +239,7 @@ def excitation_plots(filename, name="excitation_combined_plot"):
     h_ex_cascNucleon = create_histo("h_ex_casc_nuc", "Cascade, Nucleon Deex", ROOT.kViolet + 4, 3001, output_dic["ex_cascade_nucleon"], n_bins, xbins)
     h_ex_cascCluster = create_histo("h_ex_casc_clus", "Cascade with Clusters", ROOT.kViolet - 4, 3001, output_dic["ex_cascade_cluster"], n_bins, xbins)
     h_ex_oneProton = create_histo("h_ex_one", "Single Scattered Proton", ROOT.kGreen + 2, 3001, output_dic["ex_oneProton"], n_bins, xbins)
+    h_ex_protonAbsorption = create_histo("h_ex_p_abs", "Proton Absorption", ROOT.kGreen + 4, 3001, output_dic["ex_protonAbsorption"], n_bins, xbins)
     h_ex_protonPion = create_histo("h_ex_pion", "Proton + Pion", ROOT.kYellow - 9, 3001, output_dic["ex_protonPion"], n_bins, xbins)
     h_ex_other = create_histo("h_ex_oth", "No Protons", ROOT.kGray, 3001, output_dic["ex_other"], n_bins, xbins)
 
@@ -246,6 +252,7 @@ def excitation_plots(filename, name="excitation_combined_plot"):
         h_ex_cascNucleon,
         h_ex_cascCluster,
         h_ex_oneProton,
+        h_ex_protonAbsorption,
         h_ex_protonPion,
         h_ex_other,
     ]
@@ -264,6 +271,7 @@ def excitation_plots(filename, name="excitation_combined_plot"):
         h_ex_cascClusterNoDeex,
         h_ex_cascNucleonNoDeex,
         h_ex_oneProton,
+        h_ex_protonAbsorption,
         h_ex_QE,
         h_ex_noCascadePhoton,
         h_ex_noCascade,
@@ -358,10 +366,11 @@ def excitation_plots(filename, name="excitation_combined_plot"):
 #   legend1.AddEntry(h_ex_noCascadePhoton, "No Cascade FSI w/ #gamma", "f")
     legend1.AddEntry(h_ex_QE, "No Cascade w/ Deexcitation", "f")
     legend1.AddEntry(h_ex_cascNucleonNoDeex, "Cascade Nucleon, No Deex", "f")
-#    legend1.AddEntry(h_ex_cascClusterNoDeex, "Cascade Cluster, No Deex", "f")
+#   legend1.AddEntry(h_ex_cascClusterNoDeex, "Cascade Cluster, No Deex", "f")
     legend1.AddEntry(h_ex_cascNucleon, "Cascade, Deex no Clusters", "f")
     legend1.AddEntry(h_ex_cascCluster, "Cascade, Deex Clusters", "f")
     legend1.AddEntry(h_ex_oneProton, "Single Scattered Proton", "f")
+    legend1.AddEntry(h_ex_protonAbsorption, "Proton Absorption", "f")
     legend1.AddEntry(h_ex_protonPion, "Proton + Pion", "f")
     legend1.AddEntry(h_ex_other, "No Protons", "f")
     legend1.Draw()
@@ -381,7 +390,6 @@ def excitation_plots(filename, name="excitation_combined_plot"):
     c1.SaveAs(filepath)
 
     return c1
-
 
 
 def channel_migration(

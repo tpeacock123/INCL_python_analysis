@@ -307,12 +307,14 @@ def deex_multiplicity2(filename, name, no_events=500000, filename_list=None):
     #styles = [1, 1, 1, 2, 1]
 
     #labels = ["NEUT Cascade", "INCL + ABLA"]
+ #   labels = ["tom-incl-interface","main"]
     #labels = ["SF", "SF*"]
     #colors = [ROOT.kMagenta, ROOT.kBlue]
+  #  colors =[ROOT.kBlue,ROOT.kRed]
     #colors = [ROOT.kAzure, ROOT.kBlue]
-    #styles = [1, 1, 1, 2, 1]
+    styles = [1, 1, 1, 2, 1]
 
-
+    
     labels =      ["NEUT Cascade - NuWro SRC", 
                    "NEUT Cascade - NEUT SRC", 
                    "INCL + ABLA  - NuWro SRC",
@@ -321,6 +323,7 @@ def deex_multiplicity2(filename, name, no_events=500000, filename_list=None):
 
     colors = [ ROOT.kRed, ROOT.kBlue, ROOT.kRed, ROOT.kBlue ]
     styles = [4,4,1,1]
+    
 
     histograms_top = []
     histograms_bot = []

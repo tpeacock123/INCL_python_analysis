@@ -112,7 +112,7 @@ def e_reco_comps(filename, name, n_events, filename_list=None):
 
             if nvect_class.eventType in (EventType.SRC, EventType.MF):
                 bias = nvect_class.E_reco_bias(visible=False, energy_thresh=0.0)
-                if count == 0:
+                if count == 0 or count == 2:
                     qe_bias = nvect_class.E_reco_qe_bias(carbon = True)
                 else:
                     qe_bias = nvect_class.E_reco_qe_bias()
@@ -378,7 +378,7 @@ def e_reco_threshold_comps(filename, name, n_events, filename_list=None):
             if nvect_class.eventType in (EventType.SRC, EventType.MF):
                 for t_val in thresholds:
                     bias = nvect_class.E_reco_bias(
-                        visible=True, energy_thresh=t_val
+                        visible=False, energy_thresh=t_val
                     )
                     h_bias_map[t_val].Fill(bias)
 

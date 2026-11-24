@@ -31,6 +31,7 @@ class intChannel_CCQE(Enum):
     neutronPion = 9
     other = 10
     noCascadeFSIPhoton = 11
+    protonAbsorption = 12
 
 
 class intChannel_CC0pi(Enum):
@@ -477,10 +478,11 @@ class nvect_reader:
         self.novert = self.nvect.NnucFsiVert()
         self.nosteps = self.nvect.NnucFsiStep()
         self.beam_flavour = flavour
-        #if self.nopart <=5:
-        #    self.isnofsi = True 
-            
         self.isnofsi = False
+        if self.nopart <=5:
+            self.isnofsi = True 
+            
+        
         self.istransparent = False
         self.fsiProton = 0.0
         self.neutrino = self.nu()
@@ -995,8 +997,9 @@ class nvect_reader:
                 E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + self.outgoing_mass**2) 
 
         E_star = E_nu + mass_target - E_lep - E_had
-        p_star = p_nu - p_lep - p_had
-
+        #p_star = p_nu - p_lep - p_had
+        
+        p_star = 0
         if self.NC_flag == True:
             E = np.sqrt(E_star**2 - np.linalg.norm(p_star)**2) - mass_remnant_p_out
             return E   
@@ -1050,7 +1053,8 @@ class nvect_reader:
                     E_had += np.sqrt(np.linalg.norm(np.array([pinfo.fP.X(), pinfo.fP.Y(), pinfo.fP.Z()]))**2 + 939.56**2) 
 
         E_star = E_nu + mass_target - E_lep - E_had
-        p_star = p_nu - p_lep - p_had
+        #p_star = p_nu - p_lep - p_had
+        p_star = 0
 
         if carbon == True:
             if proton_counter == 1:    
@@ -1266,21 +1270,18 @@ class nvect_reader:
         print("p_casc_energy,nuclear_remnant, nucleonCounter, clusterCounter, transparentProton, pion, photonCounter,proton,prefsi_proton_mom, deex_event, cascade")
         print(self.proton_momentum_per_channel_CCQE())
         print(self.eventType.name)
-        particles, energies, flags = self.particles(flag = True, lepton=True)
 
 #        print(self.excitation_E_pion())
         
         #print(self.intChannel.name)
-        if self.intChannel == intChannel_CCQE.other:
-            input(" ")
-        if pinfo.fStatus == 5: 
-            input(" ")
-        
         if (not (self.eventType == EventType.piProd or self.eventType == EventType.NC_piProd) ):
             print(self.intChannel.name)
 
-        if 8 not in flags and 2 not in flags:
-            input( " ")
+        if pinfo.fStatus == 5: 
+            input(" ")
+        
+
+
 
         return self.eventType.name
     
@@ -1304,14 +1305,36 @@ class nvect_reader:
                 return intChannel_CCQE.protonPion
             else:
                 return intChannel_CCQE.neutronPion
-
-        if(proton != True):
             
+        particles, _ , flags = self.particles(flag=True)
+
+        if len(particles) != len(flags):
+            print(particles,flags)
+            self.Print()
+
+        if len(particles) == 0 or len(flags) == 0:
+            return intChannel_CCQE.muOnly
+
+        if(proton != True):            
             if  (nucleonCounter > 0) or (clusterCounter > 0) or (pion == True):
-                return intChannel_CCQE.neutronPion
-            else:
-                return intChannel_CCQE.muOnly
-        
+                print(particles, flags)
+                flag_set = set(flags)
+
+                if flag_set.isdisjoint({2, 8, 0}):
+                    return intChannel_CCQE.protonAbsorption
+
+                if 8 in flag_set:
+                    if 10 in flag_set:
+                        return intChannel_CCQE.CascadeClusterDeex
+                    return intChannel_CCQE.CascadeClusterNoDeex
+                
+                #return intChannel_CCQE.neutronPion
+
+
+        proton_flags = flags[particles == 2212]
+        if proton_flags not in (2,8,0):
+            return intChannel_CCQE.protonAbsorption
+            
             
         elif (transparentProton == True) and (clusterCounter <= 1) and (proton == True)  and (pion == False) and (deex_event == False):
             if photonCounter == 0:
@@ -1579,8 +1602,7 @@ class nvect_reader:
                 E_rec = num / denom
                 
                 # Returns fractional bias relative to true energy: (E_rec - E_true) / E_true
-                print(E_rec, neutrino_e)
-                print((E_rec - neutrino_e) / neutrino_e)
+
                 return (E_rec - neutrino_e) / neutrino_e
 
 
@@ -1607,6 +1629,7 @@ class nvect_reader:
                     E_invis += (p2 + 2808.39**2)**0.5 - 2808.39 
 
         return (E_invis)
+
 
 
 
